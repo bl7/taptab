@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* --background: #ffffff; */
+  /* --foreground: #171717; */
 }
 
 @theme inline {
@@ -14,8 +14,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* --background: #0a0a0a; */
+    /* --foreground: #ededed; */
   }
 }
 
@@ -24,3 +24,40 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@layer utilities {
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Eco-chic custom color utilities */
+.bg-forest { background-color: #31473A !important; }
+.text-forest { color: #31473A !important; }
+.bg-mint { background-color: #EDF4F2 !important; }
+.text-mint { color: #EDF4F2 !important; }
+.border-forest { border-color: #31473A !important; }
+.border-mint { border-color: #EDF4F2 !important; }
+
+/* Modern dashboard color utilities */
+.bg-deepgreen { background-color: #1A4D2E !important; }
+.text-deepgreen { color: #1A4D2E !important; }
+.bg-lightgreen { background-color: #4F9D69 !important; }
+.text-lightgreen { color: #4F9D69 !important; }
+.bg-softgray { background-color: #F6F8F9 !important; }
+.text-softgray { color: #F6F8F9 !important; }
+.bg-white { background-color: #FFFFFF !important; }
+.text-white { color: #FFFFFF !important; }
+.text-muted { color: #6B7280 !important; }
+.shadow-card { box-shadow: 0 4px 24px 0 rgba(60,72,88,0.08) !important; }
+.rounded-xl { border-radius: 1rem !important; }
