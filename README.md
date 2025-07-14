@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+ Menu Categories & Items
+ ### 🎯 Goal
 
-## Getting Started
+Enable each restaurant to create and manage its own categorized digital menu — with item details and Cloudinary-hosted images.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🗃️ Database Models (Prisma)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```prisma
+model MenuCategory {
+  id            String   @id @default(cuid())
+  name          String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+  restaurantId  String
+  items         MenuItem[]
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+model MenuItem {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  price          Float
+  imageUrl       String?
+  isAvailable    Boolean  @default(true)
 
-## Learn More
+  category       MenuCategory @relation(fields: [categoryId], references: [id])
+  categoryId     String
 
-To learn more about Next.js, take a look at the following resources:
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id])
+  restaurantId   String
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+⸻
 
-## Deploy on Vercel
+📤 APIs
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+/api/menu/categories
+	•	GET: List all categories for the logged-in restaurant
+	•	POST: Create category ({ name })
+	•	DELETE: Delete category (only if no items inside)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+/api/menu/items
+	•	GET: List all items for a restaurant (optional filter by category)
+	•	POST: Create item
+    {
+  name: string,
+  description?: string,
+  price: number,
+  imageUrl?: string,
+  categoryId: string
+}
+	•	PUT: Edit item
+	•	DELETE: Delete item
+	•	PATCH: Toggle availability (isAvailable)
+
+⸻
+
+🖼️ Cloudinary Image Upload
+	•	Use signed upload or preset + unsigned client upload
+	•	Store only secure_url in DB as imageUrl
+	•	Make image optional
+
+⸻
+
+💻 Frontend: /dashboard/menu
+
+Categories
+	•	Add/delete category
+	•	Show category list in sidebar or dropdown
+
+Items
+	•	Add/edit/delete items per category
+	•	Fields: name, price, description, image (upload), availability
+	•	Toggle “Available / Unavailable”
+	•	Live preview of uploaded image
+
+⸻
+
+✅ What to Build in This Prompt
+	•	MenuCategory and MenuItem models
+	•	All related API endpoints
+	•	Image upload handler for Cloudinary
+	•	Full menu manager UI
+	•	Category control
+	•	Item list and edit form
+	•	Cloudinary image support
+	•	Toggle availability
