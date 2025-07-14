@@ -1,6 +1,6 @@
 "use client";
 import { usePathname } from "next/navigation";
-import { Home, List, ClipboardList, Table, User, LogOut, Utensils, Settings, BookOpen, ChefHat } from "lucide-react";
+import { Home, ClipboardList, Table, User, LogOut, Utensils, Settings, BookOpen } from "lucide-react";
 import Image from 'next/image';
 
 interface SidebarProps {

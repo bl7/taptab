@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/pg';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../auth/[...nextauth]/authOptions';
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const user = session?.user as { restaurantId?: string };
+    if (!user?.restaurantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const { searchParams } = new URL(req.url);
-    const restaurantId = searchParams.get('restaurantId');
     const tableId = searchParams.get('tableId');
-    if (!restaurantId || !tableId) {
-      return NextResponse.json({ error: 'Missing restaurantId or tableId' }, { status: 400 });
+    if (!tableId) {
+      return NextResponse.json({ error: 'Missing tableId' }, { status: 400 });
     }
     const { rows: orders } = await pool.query(
       `SELECT * FROM "Order" WHERE "restaurantId" = $1 AND "tableId" = $2 AND status IN ('PENDING', 'PREPARING') ORDER BY "createdAt" DESC`,
-      [restaurantId, tableId]
+      [user.restaurantId, tableId]
     );
     // Fetch items for all orders
     const orderIds = orders.map((o: unknown) => (o as { id: string }).id);

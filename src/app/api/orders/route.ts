@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 }
 
 // List all orders (for dashboard)
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     const user = session?.user as { restaurantId?: string };

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/pg';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../auth/[...nextauth]/authOptions';
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const restaurantId = searchParams.get('restaurantId');
-    console.log('DEBUG: /api/orders/active restaurantId =', restaurantId);
-    if (!restaurantId) {
-      return NextResponse.json({ error: 'Missing restaurantId' }, { status: 400 });
+    const session = await getServerSession(authOptions);
+    const user = session?.user as { restaurantId?: string };
+    if (!user?.restaurantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     // Fetch orders with items and table info
     const { rows: orders } = await pool.query(`
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN "Table" t ON o."tableId" = t.id
       WHERE o."restaurantId" = $1 AND o.status IN ('PENDING', 'PREPARING')
       ORDER BY o."createdAt" DESC
-    `, [restaurantId]);
+    `, [user.restaurantId]);
     console.log('DEBUG: /api/orders/active fetched orders =', orders);
 
     // Fetch items for all orders

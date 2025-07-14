@@ -38,7 +38,12 @@ export async function POST(req: NextRequest) {
       'INSERT INTO "Table" (id, name, description, "restaurantId") VALUES ($1, $2, $3, $4)',
       [id, name, description || null, user.restaurantId]
     );
-    return NextResponse.json({ success: true, id });
+    // Fetch the full table row
+    const { rows: tableRows } = await pool.query(
+      'SELECT id, name, description, "restaurantId" FROM "Table" WHERE id = $1',
+      [id]
+    );
+    return NextResponse.json({ table: tableRows[0] });
   } catch (error) {
     console.error('Error creating table:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
