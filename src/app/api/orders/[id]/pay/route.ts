@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/generated/prisma';
+import { PrismaClient } from '@/generated/prisma/index.js';
 import { broadcastOrder } from '../../../socket/broadcast';
 
 const prisma = new PrismaClient();
