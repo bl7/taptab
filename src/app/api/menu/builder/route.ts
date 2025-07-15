@@ -20,13 +20,13 @@ export async function POST(request: NextRequest) {
     const restaurantId = session.user.restaurantId;
 
     if (action === 'save') {
-      await saveMenuLayout(restaurantId, menu, false);
-      return NextResponse.json({ success: true, message: 'Menu saved successfully' });
+      const menuId = await saveMenuLayout(restaurantId, menu, false);
+      return NextResponse.json({ success: true, message: 'Menu saved successfully', id: menuId });
     }
 
     if (action === 'publish') {
-      await saveMenuLayout(restaurantId, menu, true);
-      return NextResponse.json({ success: true, message: 'Menu published successfully' });
+      const menuId = await saveMenuLayout(restaurantId, menu, true);
+      return NextResponse.json({ success: true, message: 'Menu published successfully', id: menuId });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
@@ -70,13 +70,14 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-async function saveMenuLayout(restaurantId: string, menu: unknown, publish: boolean) {
+async function saveMenuLayout(restaurantId: string, menu: unknown, publish: boolean): Promise<string> {
   let client;
+  let menuId: string;
   try {
     client = await db.connect();
     try {
       await client.query('BEGIN');
-      let menuId = (menu as unknown as { id: string }).id;
+      menuId = (menu as unknown as { id: string }).id;
       if (publish) {
         // Unpublish all menus for this restaurant
         await client.query(
@@ -104,6 +105,7 @@ async function saveMenuLayout(restaurantId: string, menu: unknown, publish: bool
         }
       }
       await client.query('COMMIT');
+      return menuId;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

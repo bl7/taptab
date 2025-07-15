@@ -203,11 +203,17 @@ export default function MenuBuilderPage() {
         const data = await res.json();
         throw new Error(data.error || 'Failed to save menu');
       }
+      const data = await res.json();
       toast.success('Menu saved!');
-      // Refresh menus and keep selection
-      const prevMenuId = menu.id;
+      // If a new id is returned, update menu and selectedMenuId
+      if (data.id && data.id !== menu.id) {
+        setMenu(m => m ? { ...m, id: data.id } : m);
+        setSelectedMenuId(data.id);
+      } else if (data.id) {
+        setSelectedMenuId(data.id);
+      }
       await loadMenu();
-      if (prevMenuId) setSelectedMenuId(prevMenuId);
+      if (data.id) setSelectedMenuId(data.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save menu');
       toast.error(err instanceof Error ? err.message : 'Failed to save menu');
@@ -231,12 +237,16 @@ export default function MenuBuilderPage() {
         const data = await res.json();
         throw new Error(data.error || 'Failed to publish menu');
       }
-      setMenu((prev: Menu | null) => prev ? { ...prev, published: true } : null);
+      const data = await res.json();
+      setMenu((prev: Menu | null) => prev ? { ...prev, published: true, id: data.id || prev.id } : null);
       toast.success('Menu published!');
-      // Refresh menus and keep selection
-      const prevMenuId = menu.id;
+      if (data.id && data.id !== menu.id) {
+        setSelectedMenuId(data.id);
+      } else if (data.id) {
+        setSelectedMenuId(data.id);
+      }
       await loadMenu();
-      if (prevMenuId) setSelectedMenuId(prevMenuId);
+      if (data.id) setSelectedMenuId(data.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to publish menu');
       toast.error(err instanceof Error ? err.message : 'Failed to publish menu');
