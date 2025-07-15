@@ -106,6 +106,34 @@ export default function MobileOrderPage() {
     setItemModal({ open: false, item: null });
   }
 
+  async function handleConfirmOrder() {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId,
+          tableId,
+          items: cart.map(({ item, quantity }) => ({
+            itemId: item.itemId,
+            quantity,
+          })),
+          createdVia: "CUSTOMER",
+          customerName: customerName.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.id) {
+        setOrderStep('success');
+        setCart([]);
+      } else {
+        alert(data.error || "Failed to place order");
+      }
+    } catch (err) {
+      alert("Failed to place order");
+    }
+  }
+
   if (!restaurantId || !tableId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-pink-50 p-4">
@@ -445,7 +473,7 @@ export default function MobileOrderPage() {
                       </div>
                       <button
                         className="w-full bg-green-600 text-white py-3 rounded-lg font-bold text-lg mt-2 shadow-lg active:scale-95 transition"
-                        onClick={() => setOrderStep('success')}
+                        onClick={handleConfirmOrder}
                       >
                         Confirm & Place Order
                       </button>
