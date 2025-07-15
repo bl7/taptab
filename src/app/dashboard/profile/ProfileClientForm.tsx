@@ -2,13 +2,20 @@
 import { useState } from 'react';
 import Image from 'next/image';
 
-type Restaurant = { name?: string; logoUrl?: string; address?: string; currency?: string; timeZone?: string };
+type Restaurant = { name?: string; logoUrl?: string; address?: string; country?: string; currency?: string; timeZone?: string };
+
+const countries = [
+  { code: 'NP', label: 'Nepal', currency: 'NPR', timeZone: 'Asia/Kathmandu' },
+  { code: 'US', label: 'United States', currency: 'USD', timeZone: 'America/New_York' },
+  { code: 'UK', label: 'United Kingdom', currency: 'GBP', timeZone: 'Europe/London' },
+];
 
 export default function ProfileClientForm({ restaurant, userId }: { restaurant: Restaurant; userId: string }) {
   const [form, setForm] = useState({
     name: restaurant?.name || '',
     logoUrl: restaurant?.logoUrl || '',
     address: restaurant?.address || '',
+    country: restaurant?.country || 'NP',
     currency: restaurant?.currency || 'NPR',
     timeZone: restaurant?.timeZone || 'Asia/Kathmandu',
   });
@@ -182,7 +189,27 @@ export default function ProfileClientForm({ restaurant, userId }: { restaurant: 
             />
           </div>
 
-          {/* Time Zone and Currency Row */}
+          {/* Country, Time Zone, and Currency Row */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Country
+            </label>
+            <select
+              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 text-slate-900 transition-all duration-200"
+              value={form.country}
+              onChange={e => {
+                const selected = countries.find(c => c.code === e.target.value);
+                setForm(f => ({
+                  ...f,
+                  country: selected?.code || 'NP',
+                  currency: selected?.currency || 'NPR',
+                  timeZone: selected?.timeZone || 'Asia/Kathmandu',
+                }));
+              }}
+            >
+              {countries.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+            </select>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -193,31 +220,23 @@ export default function ProfileClientForm({ restaurant, userId }: { restaurant: 
                 value={form.timeZone}
                 onChange={e => setForm(f => ({ ...f, timeZone: e.target.value }))}
               >
-                {['Asia/Kathmandu', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Karachi', 'Asia/Bangkok'].map(tz => (
-                  <option key={tz} value={tz}>{tz}</option>
+                {/* Only show time zone for selected country */}
+                {countries.filter(c => c.code === form.country).map(c => (
+                  <option key={c.timeZone} value={c.timeZone}>{c.timeZone}</option>
                 ))}
               </select>
             </div>
-
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Currency
               </label>
-              <select
+              <input
+                type="text"
                 className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 text-slate-900 transition-all duration-200"
                 value={form.currency}
-                onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
-              >
-                {[
-                  { code: 'NPR', label: 'Nepalese Rupee (NPR)' },
-                  { code: 'INR', label: 'Indian Rupee (INR)' },
-                  { code: 'BDT', label: 'Bangladeshi Taka (BDT)' },
-                  { code: 'PKR', label: 'Pakistani Rupee (PKR)' },
-                  { code: 'THB', label: 'Thai Baht (THB)' }
-                ].map(c => (
-                  <option key={c.code} value={c.code}>{c.label}</option>
-                ))}
-              </select>
+                disabled
+                readOnly
+              />
             </div>
           </div>
 

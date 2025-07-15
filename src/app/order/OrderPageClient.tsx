@@ -47,6 +47,7 @@ export default function OrderPageClient() {
   // Add state for customer name
   const [customerName, setCustomerName] = useState("");
   const [customerNameError, setCustomerNameError] = useState("");
+  const [currency, setCurrency] = useState<string>('USD');
 
   // Persist cart to localStorage
   useEffect(() => {
@@ -76,6 +77,26 @@ export default function OrderPageClient() {
         setLoading(false);
       });
   }, [restaurantId, tableId]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    fetch(`/api/public/restaurant?restaurantId=${restaurantId}`)
+      .then(res => res.json())
+      .then(data => setCurrency(data.currency || 'USD'));
+  }, [restaurantId]);
+
+  function getCurrencySymbol(currency?: string) {
+    switch (currency) {
+      case 'NPR':
+        return '₨';
+      case 'USD':
+        return '$';
+      case 'GBP':
+        return '£';
+      default:
+        return '$';
+    }
+  }
 
   // Get all categories from menu
   const categories = menu.map((cat: { categoryId: string; categoryName: string }) => ({
@@ -298,7 +319,7 @@ export default function OrderPageClient() {
                         <span className="ml-1 px-1 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800">{item.badge}</span>
                       )}
                     </div>
-                    <span className="font-bold text-green-700 text-sm">${item.price.toFixed(2)}</span>
+                    <span className="font-bold text-green-700 text-sm">{getCurrencySymbol(currency)}{item.price.toFixed(2)}</span>
                     {/* Quantity control on card */}
                     <div className="flex items-center gap-1 mt-2">
                       <button
@@ -345,7 +366,7 @@ export default function OrderPageClient() {
                       <h2 className="text-xl font-bold text-gray-900 mb-2">{selectedItem.name}</h2>
                       <p className="text-gray-600 text-sm mb-4">{selectedItem.description}</p>
                       <div className="flex items-center gap-3 mb-4">
-                        <span className="font-bold text-green-700 text-lg">${selectedItem.price.toFixed(2)}</span>
+                        <span className="font-bold text-green-700 text-lg">{getCurrencySymbol(currency)}{selectedItem.price.toFixed(2)}</span>
                         <div className="flex items-center gap-1 ml-auto">
                           <button
                             className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 flex items-center justify-center text-base"
@@ -409,7 +430,7 @@ export default function OrderPageClient() {
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-gray-900 truncate text-sm mb-1">{item.name}</div>
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <span className="font-bold text-[#00932A]">${item.price.toFixed(2)}</span>
+                      <span className="font-bold text-[#00932A]">{getCurrencySymbol(currency)}{item.price.toFixed(2)}</span>
                       {/* Quantity controls */}
                       <div className="flex items-center gap-1 ml-2">
                         <button
@@ -432,7 +453,7 @@ export default function OrderPageClient() {
                       onChange={e => updateNote(item.itemId, e.target.value)}
                     />
                   </div>
-                  <div className="font-bold text-[#00932A] text-base min-w-[60px] text-right">${(item.price * (item.quantity ?? 1)).toFixed(2)}</div>
+                  <div className="font-bold text-[#00932A] text-base min-w-[60px] text-right">{getCurrencySymbol(currency)}{(item.price * (item.quantity ?? 1)).toFixed(2)}</div>
                   <button className="ml-2 text-gray-400 hover:text-red-600" onClick={() => removeFromCart(item.itemId)}>
                     <X className="w-4 h-4" />
                   </button>
@@ -446,16 +467,16 @@ export default function OrderPageClient() {
           <div className="rounded-2xl bg-gray-50 p-5">
             <div className="flex justify-between text-gray-700 mb-2 text-sm">
               <span>Sub Total</span>
-              <span>${cartTotal.toFixed(2)}</span>
+              <span>{getCurrencySymbol(currency)}{cartTotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-700 mb-2 text-sm">
               <span>Tax 5%</span>
-              <span>${(cartTotal * 0.05).toFixed(2)}</span>
+              <span>{getCurrencySymbol(currency)}{(cartTotal * 0.05).toFixed(2)}</span>
             </div>
             <div className="border-t border-dashed border-gray-300 my-3" />
             <div className="flex justify-between items-center text-lg font-extrabold text-gray-900">
               <span>Total Amount</span>
-              <span>${(cartTotal * 1.05).toFixed(2)}</span>
+              <span>{getCurrencySymbol(currency)}{(cartTotal * 1.05).toFixed(2)}</span>
             </div>
           </div>
           <div className="mb-4">
@@ -514,7 +535,7 @@ export default function OrderPageClient() {
                           )}
                           <div className="flex-1">
                             <div className="font-semibold text-gray-900 truncate">{item.name}</div>
-                            <div className="text-xs text-gray-500">${item.price.toFixed(2)} x {item.quantity}</div>
+                            <div className="text-xs text-gray-500">{getCurrencySymbol(currency)}{item.price.toFixed(2)} x {item.quantity}</div>
                           </div>
                           <button className="text-gray-400 hover:text-red-600" onClick={() => removeFromCart(item.itemId)}>
                             <X className="w-4 h-4" />
@@ -525,15 +546,15 @@ export default function OrderPageClient() {
                     <div className="border-t border-gray-100 pt-4 mb-4">
                       <div className="flex justify-between text-gray-700 mb-2">
                         <span>Subtotal</span>
-                        <span>${cartTotal.toFixed(2)}</span>
+                        <span>{getCurrencySymbol(currency)}{cartTotal.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-gray-700 mb-2">
                         <span>Tax 5%</span>
-                        <span>${(cartTotal * 0.05).toFixed(2)}</span>
+                        <span>{getCurrencySymbol(currency)}{(cartTotal * 0.05).toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between text-lg font-bold text-green-700">
                         <span>Total</span>
-                        <span>${(cartTotal * 1.05).toFixed(2)}</span>
+                        <span>{getCurrencySymbol(currency)}{(cartTotal * 1.05).toFixed(2)}</span>
                       </div>
                     </div>
                     <button

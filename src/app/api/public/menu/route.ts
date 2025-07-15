@@ -16,18 +16,6 @@ interface CategoryData {
   items: MenuItem[];
 }
 
-interface LayoutCategory {
-  categoryId: string;
-  visible: boolean;
-  items: LayoutItem[];
-}
-
-interface LayoutItem {
-  itemId: string;
-  visible: boolean;
-  badge?: string;
-}
-
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -80,6 +68,7 @@ export async function GET(req: NextRequest) {
     }
 
     const layout = menuRows[0].layout;
+    console.log('DEBUG: Loaded layout from DB:', JSON.stringify(layout));
 
     // Get all categories and items for this restaurant (for name/price/etc)
     const { rows: categories } = await pool.query(`
@@ -101,6 +90,7 @@ export async function GET(req: NextRequest) {
       WHERE mc."restaurantId" = $1
       GROUP BY mc.id, mc.name
     `, [restaurantId]);
+    console.log('DEBUG: Loaded categories from DB:', JSON.stringify(categories));
 
     // Create a map of category data
     const categoryMap = new Map<string, { categoryName: string; items: MenuItem[] }>();
@@ -112,20 +102,41 @@ export async function GET(req: NextRequest) {
     });
 
     // Build the published menu based on layout config
-    const publishedMenu = layout
-      .filter((category: LayoutCategory) => category.visible)
-      .map((category: LayoutCategory) => {
-        const categoryData = categoryMap.get(category.categoryId);
-        if (!categoryData) return null;
+    const layoutArray: unknown = Array.isArray(layout)
+      ? layout
+      : layout && typeof layout === 'object' && Array.isArray((layout as { categories?: unknown }).categories)
+        ? (layout as { categories: unknown }).categories
+        : [];
 
-        const visibleItems = category.items
-          .filter((item: LayoutItem) => item.visible)
-          .map((item: LayoutItem) => {
-            const itemData = categoryData.items.find((i: MenuItem) => i.itemId === item.itemId);
-            if (!itemData || !itemData.isAvailable) return null;
+    interface LayoutCategoryLike {
+      id?: string;
+      categoryId?: string;
+      visible?: boolean;
+      items?: LayoutItemLike[];
+    }
+    interface LayoutItemLike {
+      id?: string;
+      itemId?: string;
+      visible?: boolean;
+      badge?: string;
+    }
+
+    const publishedMenu = (layoutArray as LayoutCategoryLike[])
+      .filter((category) => (category.visible !== false))
+      .map((category) => {
+        const catId = category.categoryId || category.id;
+        const categoryData = categoryMap.get(catId ?? '');
+        if (!categoryData) return undefined;
+
+        const visibleItems = (category.items || [])
+          .filter((item) => (item.visible !== false))
+          .map((item) => {
+            const itemId = item.itemId || item.id;
+            const itemData = (categoryData.items || []).find((i: { itemId?: string; id?: string }) => (i.itemId || i.id) === itemId);
+            if (!itemData || itemData.isAvailable === false) return undefined;
 
             return {
-              itemId: item.itemId,
+              itemId: itemId,
               name: itemData.name,
               description: itemData.description,
               price: itemData.price,
@@ -133,19 +144,24 @@ export async function GET(req: NextRequest) {
               badge: item.badge || null
             };
           })
-          .filter(Boolean);
+          .filter((item): item is { itemId: string | undefined; name: string; description: string; price: number; imageUrl: string; badge: string | null } => Boolean(item));
 
         return {
-          categoryId: category.categoryId,
+          categoryId: catId,
           categoryName: categoryData.categoryName,
           items: visibleItems
         };
       })
-      .filter(Boolean);
-
-    return NextResponse.json({ layout: publishedMenu });
+      .filter((cat): cat is { categoryId: string; categoryName: string; items: { itemId: string | undefined; name: string; description: string; price: number; imageUrl: string; badge: string | null }[] } => Boolean(cat));
+    // Only include categories with at least one item
+    const nonEmptyMenu = publishedMenu.filter((cat) => Array.isArray(cat.items) && cat.items.length > 0);
+    return NextResponse.json({ layout: nonEmptyMenu });
   } catch (error) {
-    console.error('Error fetching public menu:', error);
+    if (error instanceof Error) {
+      console.error('Error fetching public menu:', error.message, error.stack);
+    } else {
+      console.error('Error fetching public menu:', error);
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

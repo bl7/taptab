@@ -3,27 +3,23 @@ import { useState } from "react";
 import { z } from "zod";
 import Image from 'next/image';
 
+const countries = [
+  { code: 'NP', label: 'Nepal', currency: 'NPR', timeZone: 'Asia/Kathmandu' },
+  { code: 'US', label: 'United States', currency: 'USD', timeZone: 'America/New_York' },
+  { code: 'UK', label: 'United Kingdom', currency: 'GBP', timeZone: 'Europe/London' },
+];
+
 const OnboardingSchema = z.object({
   name: z.string().min(1, "Restaurant name is required"),
   logoUrl: z.string().url().optional(),
   address: z.string().optional(),
+  country: z.string().min(2),
   currency: z.string().optional(),
   timeZone: z.string().optional(),
 });
 
-const timeZones = [
-  "Asia/Kathmandu", "Asia/Kolkata", "Asia/Dhaka", "Asia/Karachi", "Asia/Bangkok"
-];
-const currencies = [
-  { code: "NPR", label: "Nepalese Rupee" },
-  { code: "INR", label: "Indian Rupee" },
-  { code: "BDT", label: "Bangladeshi Taka" },
-  { code: "PKR", label: "Pakistani Rupee" },
-  { code: "THB", label: "Thai Baht" },
-];
-
 export default function OnboardingPage() {
-  const [form, setForm] = useState({ name: "", logoUrl: "", address: "", currency: "NPR", timeZone: "Asia/Kathmandu" });
+  const [form, setForm] = useState({ name: "", logoUrl: "", address: "", country: "NP", currency: "NPR", timeZone: "Asia/Kathmandu" });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -106,21 +102,40 @@ export default function OnboardingPage() {
             value={form.address}
             onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
           />
+          <label className="font-semibold text-gray-800">Country</label>
+          <select
+            className="input input-bordered w-full px-4 py-3 rounded border border-gray-300 text-gray-900 text-lg bg-gray-100"
+            value={form.country}
+            onChange={e => {
+              const selected = countries.find(c => c.code === e.target.value);
+              setForm(f => ({
+                ...f,
+                country: selected?.code || 'NP',
+                currency: selected?.currency || 'NPR',
+                timeZone: selected?.timeZone || 'Asia/Kathmandu',
+              }));
+            }}
+          >
+            {countries.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+          </select>
+          <label className="font-semibold text-gray-800">Currency</label>
+          <input
+            type="text"
+            className="input input-bordered w-full px-4 py-3 rounded border border-gray-300 text-gray-900 text-lg bg-gray-100"
+            value={form.currency}
+            disabled
+            readOnly
+          />
           <label className="font-semibold text-gray-800">Time Zone</label>
           <select
             className="input input-bordered w-full px-4 py-3 rounded border border-gray-300 text-gray-900 text-lg bg-gray-100"
             value={form.timeZone}
             onChange={e => setForm(f => ({ ...f, timeZone: e.target.value }))}
           >
-            {timeZones.map(tz => <option key={tz} value={tz}>{tz}</option>)}
-          </select>
-          <label className="font-semibold text-gray-800">Currency</label>
-          <select
-            className="input input-bordered w-full px-4 py-3 rounded border border-gray-300 text-gray-900 text-lg bg-gray-100"
-            value={form.currency}
-            onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
-          >
-            {currencies.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+            {/* Only show time zones for the selected country */}
+            {countries.filter(c => c.code === form.country).map(c => (
+              <option key={c.timeZone} value={c.timeZone}>{c.timeZone}</option>
+            ))}
           </select>
           {error && <div className="text-red-600 text-base font-medium bg-red-50 border border-red-200 rounded p-2 text-center">{error}</div>}
           {success && <div className="text-green-700 text-base font-medium bg-green-50 border border-green-200 rounded p-2 text-center">Profile updated!</div>}

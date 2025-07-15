@@ -70,11 +70,32 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 };
 const DEFAULT_CATEGORY_ICON = <Utensils className="w-5 h-5 mr-1" />;
 
+function getCurrencySymbol(currency?: string) {
+  switch (currency) {
+    case 'NPR':
+      return '₨';
+    case 'USD':
+      return '$';
+    case 'GBP':
+      return '£';
+    default:
+      return '$';
+  }
+}
+
 export default function PublicMenu({ restaurantId }: PublicMenuProps) {
   const [menuData, setMenuData] = useState<MenuCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<string>('USD');
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    fetch(`/api/public/restaurant?restaurantId=${restaurantId}`)
+      .then(res => res.json())
+      .then(data => setCurrency(data.currency || 'USD'));
+  }, [restaurantId]);
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -213,7 +234,7 @@ export default function PublicMenu({ restaurantId }: PublicMenuProps) {
                       )}
                       <div className="flex items-center justify-between">
                         <span className="text-lg font-semibold text-gray-900">
-                          ${item.price.toFixed(2)}
+                          {getCurrencySymbol(currency)}{item.price.toFixed(2)}
                         </span>
                         <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                           Add to Order

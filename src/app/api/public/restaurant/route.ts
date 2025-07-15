@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
         name: true,
         logoUrl: true,
         address: true,
+        country: true,
         currency: true,
         timeZone: true,
       },

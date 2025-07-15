@@ -49,6 +49,7 @@ export default function PublicMobileMenu({ restaurantId, tableId }: { restaurant
   const [search, setSearch] = useState('');
   const [saved, setSaved] = useState<string[]>([]);
   const [tab, setTab] = useState<'home' | 'saved' | 'profile'>('home');
+  const [currency, setCurrency] = useState<string>('USD');
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -63,6 +64,26 @@ export default function PublicMobileMenu({ restaurantId, tableId }: { restaurant
       localStorage.setItem('currentTableId', tableId);
     }
   }, [restaurantId, tableId]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    fetch(`/api/public/restaurant?restaurantId=${restaurantId}`)
+      .then(res => res.json())
+      .then(data => setCurrency(data.currency || 'USD'));
+  }, [restaurantId]);
+
+  function getCurrencySymbol(currency?: string) {
+    switch (currency) {
+      case 'NPR':
+        return '₨';
+      case 'USD':
+        return '$';
+      case 'GBP':
+        return '£';
+      default:
+        return '$';
+    }
+  }
 
   const handleSave = (itemId: string) => {
     const newSaved = saved.includes(itemId)
@@ -190,7 +211,7 @@ export default function PublicMobileMenu({ restaurantId, tableId }: { restaurant
                       )}
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-base font-semibold text-gray-900">
-                          ${item.price.toFixed(2)}
+                          {getCurrencySymbol(currency)}{item.price.toFixed(2)}
                         </span>
                         {/* Mocked rating/time/distance for demo */}
                         <span className="flex items-center text-xs text-gray-500">

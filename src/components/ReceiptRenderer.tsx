@@ -10,7 +10,7 @@ interface OrderItem {
 
 interface Order {
   id: string;
-  restaurant?: { name?: string | null; logoUrl?: string | null };
+  restaurant?: { name?: string | null; logoUrl?: string | null; currency?: string | null };
   table?: { name?: string | null };
   createdAt: string | Date;
   items: OrderItem[];
@@ -18,7 +18,21 @@ interface Order {
   note?: string | null;
 }
 
+const getCurrencySymbol = (currency?: string) => {
+  switch (currency) {
+    case 'NPR':
+      return '₨';
+    case 'USD':
+      return '$';
+    case 'GBP':
+      return '£';
+    default:
+      return '$';
+  }
+};
+
 const ReceiptRenderer: React.FC<{ order: Order }> = ({ order }) => {
+  const currencySymbol = getCurrencySymbol(order.restaurant?.currency ?? undefined);
   return (
     <div
       style={{
@@ -59,13 +73,13 @@ const ReceiptRenderer: React.FC<{ order: Order }> = ({ order }) => {
                 </span>
               ) : null}
             </span>
-            <span>${(item.price * item.quantity).toFixed(2)}</span>
+            <span>{currencySymbol}{(item.price * item.quantity).toFixed(2)}</span>
           </div>
         ))}
       </div>
       {/* Total */}
       <div style={{ borderTop: "1px solid #000", paddingTop: 8, fontWeight: "bold", textAlign: "right", fontSize: 15 }}>
-        Total: ${order.total.toFixed(2)}
+        Total: {currencySymbol}{order.total.toFixed(2)}
       </div>
       {/* Order Note */}
       {order.note && (

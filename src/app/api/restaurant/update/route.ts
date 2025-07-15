@@ -8,6 +8,7 @@ const RestaurantSchema = z.object({
   name: z.string().min(1),
   logoUrl: z.string().optional(),
   address: z.string().optional(),
+  country: z.string().min(2),
   currency: z.string().optional(),
   timeZone: z.string().optional(),
 });
@@ -24,10 +25,10 @@ export async function POST(req: NextRequest) {
     if (!result.success) {
       return NextResponse.json({ error: result.error.errors[0].message }, { status: 400 });
     }
-    const { name, logoUrl, address, currency, timeZone } = result.data;
+    const { name, logoUrl, address, country, currency, timeZone } = result.data;
     await pool.query(
-      'UPDATE "Restaurant" SET name = $1, "logoUrl" = $2, address = $3, currency = $4, "timeZone" = $5 WHERE id = $6',
-      [name, logoUrl, address, currency, timeZone, user.restaurantId]
+      'UPDATE "Restaurant" SET name = $1, "logoUrl" = $2, address = $3, country = $4, currency = $5, "timeZone" = $6 WHERE id = $7',
+      [name, logoUrl, address, country, currency, timeZone, user.restaurantId]
     );
     return NextResponse.json({ success: true });
   } catch (err) {

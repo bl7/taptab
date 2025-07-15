@@ -11,11 +11,38 @@ export async function GET() {
     if (!user?.restaurantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // Fetch layout as well
     const { rows } = await pool.query(
-      'SELECT id, name, published, "updatedAt" FROM "Menu" WHERE "restaurantId" = $1 ORDER BY "updatedAt" DESC',
+      'SELECT id, name, published, "updatedAt", layout FROM "Menu" WHERE "restaurantId" = $1 ORDER BY "updatedAt" DESC',
       [user.restaurantId]
     );
-    return NextResponse.json(rows);
+    // Parse layout JSON for each menu, robustly and handle object type
+    interface MenuRow {
+      id: string;
+      name: string;
+      published: boolean;
+      updatedAt: string;
+      layout: string | object | null;
+    }
+    const menus = rows.map((row: MenuRow) => {
+      let layout: unknown = null;
+      if (row.layout) {
+        if (typeof row.layout === 'string' && row.layout.trim() !== '') {
+          try {
+            layout = JSON.parse(row.layout);
+          } catch {
+            layout = null;
+          }
+        } else if (typeof row.layout === 'object') {
+          layout = row.layout;
+        }
+      }
+      return {
+        ...row,
+        layout,
+      };
+    });
+    return NextResponse.json(menus);
   } catch (error) {
     console.error('Error fetching menus:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -28,7 +28,7 @@ export default async function ProfilePage() {
   
   // Fetch restaurant details
   const { rows } = await pool.query(
-    'SELECT name, "logoUrl", address, currency, "timeZone" FROM "Restaurant" WHERE "userId" = $1',
+    'SELECT name, "logoUrl", address, country, currency, "timeZone" FROM "Restaurant" WHERE "userId" = $1',
     [user.id]
   );
   const restaurant = rows[0];

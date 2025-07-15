@@ -1,14 +1,36 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type MenuItem = { itemId: string; name: string; price: number; description?: string };
 type MenuCategory = { categoryId: string; categoryName: string; items: MenuItem[] };
+
+function getCurrencySymbol(currency?: string) {
+  switch (currency) {
+    case 'NPR':
+      return '₨';
+    case 'USD':
+      return '$';
+    case 'GBP':
+      return '£';
+    default:
+      return '$';
+  }
+}
+
 export default function OrderCart({ menu, restaurantId, tableId, selectedCategory }: { menu: MenuCategory[]; restaurantId: string; tableId: string; selectedCategory?: string | null }) {
   const [cart, setCart] = useState<{ itemId: string; name: string; price: number; quantity: number }[]>([]);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{ orderId: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<string>('USD');
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    fetch(`/api/public/restaurant?restaurantId=${restaurantId}`)
+      .then(res => res.json())
+      .then(data => setCurrency(data.currency || 'USD'));
+  }, [restaurantId]);
 
   function addToCart(item: MenuItem) {
     setCart((prev) => {
@@ -102,7 +124,7 @@ export default function OrderCart({ menu, restaurantId, tableId, selectedCategor
                         <div className="flex-1">
                           <div className="font-semibold text-gray-900 mb-1">{item.name}</div>
                           <div className="text-sm text-gray-600 mb-2">{item.description || "Delicious item from our menu"}</div>
-                          <div className="text-lg font-bold text-blue-600">${item.price.toFixed(2)}</div>
+                          <div className="text-lg font-bold text-blue-600">{getCurrencySymbol(currency)}{item.price.toFixed(2)}</div>
                         </div>
                         <div className="ml-4">
                           {!cartItem ? (
@@ -152,6 +174,7 @@ export default function OrderCart({ menu, restaurantId, tableId, selectedCategor
             handleSubmit={handleSubmit}
             updateQuantity={updateQuantity}
             removeFromCart={removeFromCart}
+            currency={currency}
           />
         </div>
       </form>
@@ -167,13 +190,14 @@ export default function OrderCart({ menu, restaurantId, tableId, selectedCategor
           handleSubmit={handleSubmit}
           updateQuantity={updateQuantity}
           removeFromCart={removeFromCart}
+          currency={currency}
         />
       </div>
     </div>
   );
 }
 
-function CartSummary({ cart, total, note, setNote, error, submitting, handleSubmit, updateQuantity, removeFromCart }: {
+function CartSummary({ cart, total, note, setNote, error, submitting, handleSubmit, updateQuantity, removeFromCart, currency }: {
   cart: { itemId: string; name: string; price: number; quantity: number }[];
   total: number;
   note: string;
@@ -183,6 +207,7 @@ function CartSummary({ cart, total, note, setNote, error, submitting, handleSubm
   handleSubmit: (e: React.FormEvent) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   removeFromCart: (itemId: string) => void;
+  currency: string;
 }) {
   return (
     <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 sticky top-4">
@@ -209,7 +234,7 @@ function CartSummary({ cart, total, note, setNote, error, submitting, handleSubm
               <div key={item.itemId} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                 <div className="flex-1">
                   <div className="font-medium text-gray-900">{item.name}</div>
-                  <div className="text-sm text-gray-600">${item.price.toFixed(2)} each</div>
+                  <div className="text-sm text-gray-600">{getCurrencySymbol(currency)}{item.price.toFixed(2)} each</div>
                 </div>
                 <div className="flex items-center space-x-2 ml-4">
                   <button
@@ -245,7 +270,7 @@ function CartSummary({ cart, total, note, setNote, error, submitting, handleSubm
           <div className="border-t border-gray-200 pt-4 mb-6">
             <div className="flex justify-between items-center mb-2">
               <span className="text-lg font-semibold text-gray-900">Total</span>
-              <span className="text-2xl font-bold text-blue-600">${total.toFixed(2)}</span>
+              <span className="text-2xl font-bold text-blue-600">{getCurrencySymbol(currency)}{total.toFixed(2)}</span>
             </div>
           </div>
         </>
@@ -283,7 +308,7 @@ function CartSummary({ cart, total, note, setNote, error, submitting, handleSubm
                 Placing Order...
               </div>
             ) : (
-              `Place Order • $${total.toFixed(2)}`
+              `${getCurrencySymbol(currency)}${total.toFixed(2)}`
             )}
           </button>
         </>

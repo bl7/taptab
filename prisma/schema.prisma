@@ -28,6 +28,7 @@ model Restaurant {
   address     String?
   currency    String?   @default("NPR")
   timeZone    String?   @default("Asia/Kathmandu")
+  country     String?   @default("NP")
   user        User      @relation(fields: [userId], references: [id])
   userId      String    @unique
   createdAt   DateTime @default(now())
