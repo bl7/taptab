@@ -8,18 +8,21 @@ import { authOptions } from '../auth/[...nextauth]/authOptions';
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const user = session?.user as { restaurantId?: string };
-    if (!user?.restaurantId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    let restaurantId: string | undefined = typeof session?.user?.restaurantId === 'string' ? session.user.restaurantId : undefined;
     const body = await req.json();
+    if (!restaurantId) {
+      restaurantId = typeof body.restaurantId === 'string' ? body.restaurantId : undefined;
+    }
+    if (!restaurantId) {
+      return NextResponse.json({ error: 'Missing restaurantId' }, { status: 400 });
+    }
     const { tableId, note, items, createdVia, customerName } = body;
     if (!tableId || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
     // Fetch menu items for price/name snapshot
     const menuItems = await prisma.menuItem.findMany({
-      where: { id: { in: items.map((i: unknown) => (i as { itemId: string }).itemId) }, restaurantId: user.restaurantId },
+      where: { id: { in: items.map((i: unknown) => (i as { itemId: string }).itemId) }, restaurantId },
     });
     if (menuItems.length !== items.length) {
       return NextResponse.json({ error: 'Invalid menu items' }, { status: 400 });
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
     const total = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
     const order = await prisma.order.create({
       data: {
-        restaurantId: user.restaurantId,
+        restaurantId,
         tableId,
         note: note || null,
         createdVia: createdVia || 'CUSTOMER',
