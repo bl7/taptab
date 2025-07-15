@@ -129,7 +129,7 @@ export default function MobileOrderPage() {
       } else {
         alert(data.error || "Failed to place order");
       }
-    } catch (err) {
+    } catch {
       alert("Failed to place order");
     }
   }
