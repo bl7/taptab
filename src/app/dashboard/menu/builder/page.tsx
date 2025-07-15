@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';import { ArrowLeft, Save, Eye, Plus, Settings } from 'lucide-react';
+import { useRouter } from 'next/navigation';import { ArrowLeft, Save, Eye, Settings } from 'lucide-react';
 import type { Menu, MenuCategory, MenuItem } from './MenuBuilder';
 import MenuBuilder from './MenuBuilder';
 
@@ -16,7 +16,6 @@ export default function MenuBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -191,8 +190,6 @@ export default function MenuBuilderPage() {
         throw new Error(data.error || 'Failed to save menu');
       }
 
-      setSuccess('Menu saved successfully!');
-      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save menu');
     } finally {
@@ -220,8 +217,6 @@ export default function MenuBuilderPage() {
         throw new Error(data.error || 'Failed to publish menu');
       }
 
-      setSuccess('Menu published successfully! 🎉');
-      setTimeout(() => setSuccess(null), 3000);
       setMenu((prev: Menu | null) => prev ? { ...prev, published: true } : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to publish menu');
