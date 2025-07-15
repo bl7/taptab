@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const body = await req.json();
-    const { tableId, note, items, createdVia } = body;
+    const { tableId, note, items, createdVia, customerName } = body;
     if (!tableId || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
         paid: false,
         total,
         items: { create: orderItems },
+        customerName: customerName || null,
       },
       include: { items: true },
     });

@@ -106,6 +106,8 @@ model Order {
   items        OrderItem[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  customerName String?
+  cancellationReason String?
 }
 
 enum OrderStatus {

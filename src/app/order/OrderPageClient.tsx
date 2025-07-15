@@ -2,9 +2,19 @@
 import { Fragment, useEffect, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { useSearchParams } from "next/navigation";
-import { ShoppingCart, ArrowLeft, Search, X } from "lucide-react";
+import { ShoppingCart, Search, X } from "lucide-react";
 import Image from 'next/image';
-import MenuPublicView from "@/components/MenuPublicView";
+import React from "react";
+
+// 1. Category icon mapping (move outside component, type as React.ReactNode)
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  Breakfast: <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  Soups: <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  Pasta: <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  "Main Course": <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  Burgers: <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  // Add more as needed
+};
 
 export default function OrderPageClient() {
   const searchParams = useSearchParams();
@@ -12,9 +22,7 @@ export default function OrderPageClient() {
   const tableId = searchParams!.get("tid");
   type MenuItem = { itemId: string; name: string; price: number; description?: string; imageUrl?: string; badge?: string; quantity?: number; note?: string; allergens?: string[]; dietaryTags?: string[] };
   type MenuCategory = { categoryId: string; categoryName: string; items: MenuItem[] };
-  type Restaurant = { name?: string; logoUrl?: string };
   const [menu, setMenu] = useState<MenuCategory[]>([]);
-  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -35,6 +43,10 @@ export default function OrderPageClient() {
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [tableNumber, setTableNumber] = useState<string | null>(null);
+  const [modalNote, setModalNote] = useState("");
+  // Add state for customer name
+  const [customerName, setCustomerName] = useState("");
+  const [customerNameError, setCustomerNameError] = useState("");
 
   // Persist cart to localStorage
   useEffect(() => {
@@ -48,12 +60,10 @@ export default function OrderPageClient() {
     setLoading(true);
     Promise.all([
       fetch(`/api/public/menu?restaurantId=${restaurantId}`).then((res) => res.json()),
-      fetch(`/api/public/restaurant?restaurantId=${restaurantId}`).then((res) => res.json()),
       fetch(`/api/tables?restaurantId=${restaurantId}`).then((res) => res.json()),
     ])
-      .then(([menuData, restaurantData, tablesData]) => {
+      .then(([menuData, tablesData]) => {
         setMenu(menuData.layout || []);
-        setRestaurant(restaurantData);
         // Find table number
         if (tablesData && tablesData.tables && tableId) {
           const found = tablesData.tables.find((t: { id: string }) => t.id === tableId);
@@ -73,8 +83,6 @@ export default function OrderPageClient() {
     name: cat.categoryName,
   }));
 
-  // Cart badge count
-  const cartCount = cart.reduce((sum, i) => sum + (i.quantity ?? 1), 0);
   const cartTotal = cart.reduce((sum, i) => sum + (i.quantity ?? 1) * i.price, 0);
 
   // Filtered menu logic
@@ -91,24 +99,6 @@ export default function OrderPageClient() {
       }),
     }))
     .filter((cat) => cat.items.length > 0);
-
-  const ALLERGENS = ["nuts", "dairy", "gluten", "soy", "egg", "shellfish"];
-  const DIETARY_TAGS = ["vegan", "vegetarian", "gluten-free", "halal", "kosher"];
-
-  function getBadges(item: MenuItem) {
-    const badges = [];
-    if (item.allergens?.length) {
-      for (const allergen of item.allergens) {
-        if (ALLERGENS.includes(allergen)) badges.push({ type: "allergen", value: allergen });
-      }
-    }
-    if (item.dietaryTags?.length) {
-      for (const tag of item.dietaryTags) {
-        if (DIETARY_TAGS.includes(tag)) badges.push({ type: "dietary", value: tag });
-      }
-    }
-    return badges;
-  }
 
   function addToCart(item: MenuItem) {
     setCart((prev) => {
@@ -127,11 +117,12 @@ export default function OrderPageClient() {
   }
 
   function updateQuantity(itemId: string, quantity: number) {
-    setCart((prev) =>
-      prev.map((i) =>
+    setCart((prev) => {
+      if (quantity <= 0) return prev.filter((i) => i.itemId !== itemId);
+      return prev.map((i) =>
         i.itemId === itemId ? { ...i, quantity: Math.max(1, quantity) } : i
-      )
-    );
+      );
+    });
   }
 
   function updateNote(itemId: string, note: string) {
@@ -144,19 +135,36 @@ export default function OrderPageClient() {
 
   function openItemModal(item: MenuItem) {
     setSelectedItem(item);
-    setModalQty(1);
+    const cartItem = cart.find((i) => i.itemId === item.itemId);
+    setModalQty(cartItem?.quantity ?? 1);
+    setModalNote(cartItem?.note ?? "");
   }
   function closeItemModal() {
     setSelectedItem(null);
   }
   function handleAddFromModal() {
-    for (let i = 0; i < modalQty; i++) addToCart(selectedItem!);
+    setCart((prev) => {
+      const existing = prev.find((i) => i.itemId === selectedItem!.itemId);
+      if (existing) {
+        return prev.map((i) =>
+          i.itemId === selectedItem!.itemId
+            ? { ...i, quantity: modalQty, note: modalNote }
+            : i
+        );
+      }
+      return [...prev, { ...selectedItem!, quantity: modalQty, note: modalNote }];
+    });
     closeItemModal();
   }
 
   async function handleConfirmOrder() {
+    if (!customerName.trim()) {
+      setCustomerNameError("Please enter your name before placing the order.");
+      return;
+    }
     setOrderLoading(true);
     setOrderError(null);
+    setCustomerNameError("");
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -166,12 +174,14 @@ export default function OrderPageClient() {
           tableId,
           items: cart.map((i) => ({ itemId: i.itemId, quantity: typeof i.quantity === 'number' ? i.quantity : 1, note: i.note })),
           createdVia: "CUSTOMER",
+          customerName: customerName.trim(),
         }),
       });
       const data = await res.json();
       if (res.ok) {
         setOrderSuccess(true);
         setCart([]);
+        setCustomerName("");
       } else {
         setOrderError(data.error || "Failed to submit order");
       }
@@ -222,304 +232,329 @@ export default function OrderPageClient() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      {/* Sticky Header */}
-      <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button className="p-2 rounded-full hover:bg-gray-100">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-lg font-bold text-black leading-tight">{restaurant?.name || "Menu"}</h1>
+    <div className="min-h-screen bg-[#F6F8F7] flex flex-col md:flex-row">
+      {/* Left: Menu and Categories */}
+      <div className="flex-1 flex flex-col px-4 py-6 max-w-4xl mx-auto">
+        {/* Search */}
+        <div className="flex flex-col gap-2 mb-2">
+          <div className="flex-1 flex items-center bg-white rounded-xl shadow px-4 py-3 border border-gray-200">
+            <Search className="w-5 h-5 text-green-600 mr-2" />
+            <input
+              type="text"
+              placeholder="Search for dishes..."
+              className="flex-1 bg-transparent outline-none text-base text-gray-900"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          {/* Category Tabs - full width row below search */}
+          <div className="flex gap-2 w-full overflow-x-auto py-2 no-scrollbar">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`flex items-center px-5 py-2 rounded-full font-semibold text-base shadow-sm border transition-all whitespace-nowrap
+                ${selectedCategory === null ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-green-50"}`}
+            >
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>
+              All
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`flex items-center px-5 py-2 rounded-full font-semibold text-base shadow-sm border transition-all whitespace-nowrap
+                  ${selectedCategory === cat.id ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-green-50"}`}
+              >
+                {CATEGORY_ICONS[cat.name] || <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                {cat.name}
+              </button>
+            ))}
+          </div>
         </div>
-        <button className="relative p-2 rounded-full hover:bg-gray-100" onClick={() => setCartModalOpen(true)} aria-label="View cart">
-          <ShoppingCart className="w-6 h-6 text-black" />
-          {cartCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-xs font-bold shadow">{cartCount}</span>
+        {/* Menu Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mt-2">
+          {filteredMenu.flatMap((cat) =>
+            cat.items.map((item) => {
+              const cartItem = cart.find((i) => i.itemId === item.itemId);
+              return (
+                <div
+                  key={item.itemId}
+                  className="bg-white rounded-xl shadow border border-gray-100 flex flex-col p-2 hover:shadow-md transition group cursor-pointer relative"
+                  onClick={() => openItemModal(item)}
+                >
+                  {item.imageUrl && (
+                    <div className="w-full h-20 mb-2 relative rounded-md overflow-hidden bg-gray-100">
+                      <Image
+                        src={item.imageUrl}
+                        alt={item.name}
+                        fill
+                        className="object-cover group-hover:scale-105 transition"
+                      />
+                    </div>
+                  )}
+                  <div className="flex-1 flex flex-col">
+                    <div className="flex items-center gap-1 mb-1">
+                      <h3 className="font-semibold text-xs text-gray-900 flex-1 truncate">{item.name}</h3>
+                      {item.badge && (
+                        <span className="ml-1 px-1 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800">{item.badge}</span>
+                      )}
+                    </div>
+                    <span className="font-bold text-green-700 text-sm">${item.price.toFixed(2)}</span>
+                    {/* Quantity control on card */}
+                    <div className="flex items-center gap-1 mt-2">
+                      <button
+                        className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 hover:bg-[#00932A] hover:text-white flex items-center justify-center text-xs"
+                        onClick={e => { e.stopPropagation(); updateQuantity(item.itemId, (cartItem?.quantity ?? 1) - 1); }}
+                        disabled={!cartItem}
+                      >-</button>
+                      <span className="font-semibold text-gray-900 min-w-[16px] text-center text-xs">{cartItem?.quantity ?? 0}</span>
+                      <button
+                        className="w-6 h-6 rounded-full bg-green-600 text-white hover:bg-green-700 flex items-center justify-center text-xs"
+                        onClick={e => { e.stopPropagation(); addToCart(item); }}
+                      >+</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
           )}
-        </button>
-      </header>
-      {/* Search Bar */}
-      <div className="sticky top-[56px] z-10 bg-white px-4 py-2 border-b border-gray-100 flex items-center gap-2">
-        <Search className="w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search for dishes..."
-          className="flex-1 bg-transparent outline-none text-sm px-2 text-black"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
-      {/* Category Chips */}
-      <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setSelectedCategory(null)}
-          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-            selectedCategory === null
-              ? "bg-blue-600 text-white shadow-md"
-              : "bg-gray-100 text-black hover:bg-gray-200"
-          }`}
-        >
-          All
-        </button>
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setSelectedCategory(cat.id)}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-              selectedCategory === cat.id
-                ? "bg-blue-600 text-white shadow-md"
-                : "bg-gray-100 text-black hover:bg-gray-200"
-            }`}
-          >
-            {cat.name}
-          </button>
-        ))}
-      </div>
-      {/* Menu Grid */}
-      <MenuPublicView
-        menu={filteredMenu}
-        cart={cart}
-        onItemClick={openItemModal}
-        onAddToCart={addToCart}
-        onRemoveFromCart={removeFromCart}
-        onUpdateQuantity={updateQuantity}
-        onUpdateNote={updateNote}
-        getBadges={getBadges}
-      />
-      {/* Modal for single item view */}
-      <Transition.Root show={!!selectedItem} as={Fragment}>
-        <Dialog as="div" className="fixed inset-0 z-[100] overflow-y-auto" onClose={closeItemModal}>
-          <div className="flex items-center justify-center min-h-screen px-4 py-8 text-center">
+        </div>
+        {/* Item Modal */}
+        <Transition.Root show={!!selectedItem} as={Fragment}>
+          <Dialog as="div" className="fixed inset-0 z-50" onClose={closeItemModal}>
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
               leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
             >
-              <div className="fixed inset-0 bg-black bg-opacity-60 transition-opacity z-[99]" aria-hidden="true" />
+              <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
             </Transition.Child>
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
-            >
-              <div className="inline-block align-middle bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all w-full max-w-md p-0 z-[100]">
-                {selectedItem && (
-                  <>
-                    <div className="relative">
-                      {selectedItem.imageUrl ? (
-                        <Image src={selectedItem.imageUrl} alt={selectedItem.name} width={224} height={140} className="w-full h-56 object-cover" />
-                      ) : (
-                        <div className="w-full h-56 bg-gray-100 flex items-center justify-center text-4xl text-gray-400">🍽️</div>
+            <div className="fixed inset-0 flex items-center justify-center p-4">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl mx-auto">
+                  {selectedItem && (
+                    <>
+                      {selectedItem.imageUrl && (
+                        <div className="w-full h-48 mb-4 relative rounded-xl overflow-hidden bg-gray-100">
+                          <Image src={selectedItem.imageUrl} alt={selectedItem.name} fill className="object-cover" />
+                        </div>
                       )}
-                      <button
-                        className="absolute top-3 right-3 bg-white bg-opacity-80 rounded-full p-2 hover:bg-opacity-100"
-                        onClick={closeItemModal}
-                        aria-label="Close"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="p-6">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-1">{selectedItem.name}</h2>
-                      <div className="text-blue-600 font-semibold text-lg mb-2">₹ {selectedItem.price?.toFixed(2) ?? "--"}</div>
-                      {selectedItem.description && (
-                        <div className="text-gray-600 mb-3 text-sm">{selectedItem.description}</div>
-                      )}
-                      {/* Badges, allergens, etc. can go here if available */}
-                      <div className="flex items-center gap-4 mt-4 mb-6 justify-center">
-                        <button
-                          className="w-10 h-10 rounded-full bg-gray-200 text-2xl font-bold text-gray-700 hover:bg-gray-300"
-                          onClick={() => setModalQty(q => Math.max(1, q - 1))}
-                        >
-                          -
-                        </button>
-                        <span className="font-semibold text-xl w-8 text-center">{modalQty}</span>
-                        <button
-                          className="w-10 h-10 rounded-full bg-blue-600 text-white text-2xl font-bold hover:bg-blue-700"
-                          onClick={() => setModalQty(q => q + 1)}
-                        >
-                          +
-                        </button>
+                      <h2 className="text-xl font-bold text-gray-900 mb-2">{selectedItem.name}</h2>
+                      <p className="text-gray-600 text-sm mb-4">{selectedItem.description}</p>
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="font-bold text-green-700 text-lg">${selectedItem.price.toFixed(2)}</span>
+                        <div className="flex items-center gap-1 ml-auto">
+                          <button
+                            className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 flex items-center justify-center text-base"
+                            onClick={() => setModalQty(q => Math.max(1, q - 1))}
+                          >-</button>
+                          <span className="font-semibold text-gray-900 min-w-[24px] text-center">{modalQty}</span>
+                          <button
+                            className="w-8 h-8 rounded-full bg-green-600 text-white hover:bg-green-700 flex items-center justify-center text-base"
+                            onClick={() => setModalQty(q => q + 1)}
+                          >+</button>
+                        </div>
                       </div>
+                      <input
+                        type="text"
+                        placeholder="Add note..."
+                        className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#00932A] mb-4"
+                        value={modalNote}
+                        onChange={e => setModalNote(e.target.value)}
+                      />
                       <button
-                        className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold text-lg shadow hover:bg-blue-700 transition"
+                        className="w-full py-3 rounded-xl bg-green-600 text-white font-bold text-lg shadow hover:bg-green-700 transition"
                         onClick={handleAddFromModal}
                       >
-                        Add to Cart
+                        Add to Order
                       </button>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </Dialog>
+        </Transition.Root>
+      </div>
+      {/* Right: Cart Summary (desktop) - sticky bottom total & button */}
+      <div className="hidden md:flex flex-col w-[400px] bg-white border-l border-gray-100 shadow-lg min-h-screen sticky top-0 p-0">
+        <div className="flex-1 p-6 overflow-y-auto">
+          {/* Table header (no order type tabs) */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="text-2xl font-extrabold text-gray-900 leading-tight">Table {tableNumber || "-"}</div>
+                <div className="text-sm text-gray-400">Guest</div>
               </div>
-            </Transition.Child>
+              <button className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:text-[#00932A]">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 20h9" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19.5 3 21l1.5-4L16.5 3.5z" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            </div>
           </div>
-        </Dialog>
-      </Transition.Root>
-      {/* Cart Modal */}
-      <Transition.Root show={cartModalOpen} as={Fragment}>
-        <Dialog as="div" className="fixed inset-0 z-[100] overflow-y-auto" onClose={() => setCartModalOpen(false)}>
-          <div className="flex items-center justify-center min-h-screen px-4 py-8 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
-              leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
-            >
-              <div className="fixed inset-0 bg-black bg-opacity-60 transition-opacity z-[99]" aria-hidden="true" />
-            </Transition.Child>
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
-            >
-              <div className="inline-block align-middle bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all w-full max-w-md z-[100]">
-                {orderSuccess ? (
-                  <div className="flex flex-col items-center justify-center p-8">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                      <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
+          {/* Cart Items List */}
+          {cart.length === 0 ? (
+            <div className="text-gray-400 text-center mt-16">Your cart is empty.</div>
+          ) : (
+            <div className="space-y-4 mb-8">
+              {cart.map((item) => (
+                <div key={item.itemId} className="flex items-center gap-3 bg-white rounded-2xl shadow border border-gray-100 px-3 py-2">
+                  {item.imageUrl && (
+                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                      <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="object-cover" />
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Order Confirmed!</h3>
-                    <p className="text-gray-600 mb-4">Thank you for your order. We&apos;ll start preparing it right away.</p>
-                    <button
-                      className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold text-lg shadow hover:bg-blue-700 transition mt-2"
-                      onClick={() => { setOrderSuccess(false); setCartModalOpen(false); }}
-                    >
-                      Close
-                    </button>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-900 truncate text-sm mb-1">{item.name}</div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span className="font-bold text-[#00932A]">${item.price.toFixed(2)}</span>
+                      {/* Quantity controls */}
+                      <div className="flex items-center gap-1 ml-2">
+                        <button
+                          className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 hover:bg-[#00932A] hover:text-white flex items-center justify-center text-xs"
+                          onClick={() => updateQuantity(item.itemId, (item.quantity ?? 1) - 1)}
+                          disabled={!item}
+                        >-</button>
+                        <span className="font-semibold text-gray-900 min-w-[16px] text-center text-xs">{item.quantity}</span>
+                        <button
+                          className="w-6 h-6 rounded-full bg-[#00932A] text-white hover:bg-green-700 flex items-center justify-center text-xs"
+                          onClick={() => updateQuantity(item.itemId, (item.quantity ?? 1) + 1)}
+                        >+</button>
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Add note..."
+                      className="mt-2 w-full rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#00932A]"
+                      value={item.note || ""}
+                      onChange={e => updateNote(item.itemId, e.target.value)}
+                    />
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between px-6 py-4 border-b">
-                      <h2 className="text-xl font-bold text-gray-900">Your Cart</h2>
-                      <button onClick={() => setCartModalOpen(false)} className="p-2 rounded-full hover:bg-gray-100" aria-label="Close cart">
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                      {cart.length === 0 ? (
-                        <div className="text-center text-gray-400 py-8">Your cart is empty.</div>
-                      ) : (
-                        cart.map((item) => (
-                          <div key={item.itemId} className="flex items-center gap-4 border-b pb-4 last:border-b-0 last:pb-0">
-                            {item.imageUrl ? (
-                              <Image src={item.imageUrl} alt={item.name} width={64} height={64} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
-                            ) : (
-                              <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center text-xl text-gray-400">🍽️</div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-gray-900 truncate">{item.name}</div>
-                              <div className="text-blue-600 font-bold">₹ {item.price?.toFixed(2) ?? "--"}</div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="w-8 h-8 rounded-full bg-gray-200 text-lg font-bold text-gray-700 hover:bg-gray-300"
-                                onClick={() =>
-                                  item.quantity === 1
-                                    ? removeFromCart(item.itemId)
-                                    : updateQuantity(item.itemId, item.quantity - 1)
-                                }
-                              >
-                                -
-                              </button>
-                              <span className="font-semibold text-base w-6 text-center">{typeof item.quantity === 'number' ? item.quantity : 1}</span>
-                              <button
-                                className="w-8 h-8 rounded-full bg-blue-600 text-white text-lg font-bold hover:bg-blue-700"
-                                onClick={() => updateQuantity(item.itemId, item.quantity + 1)}
-                              >
-                                +
-                              </button>
-                            </div>
-                            <button
-                              className="ml-2 text-gray-400 hover:text-red-500"
-                              onClick={() => removeFromCart(item.itemId)}
-                              aria-label="Remove item"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div className="px-6 py-4 border-t flex items-center justify-between">
-                      <div className="font-semibold text-lg text-gray-900">Total</div>
-                      <div className="text-blue-600 font-bold text-lg">₹ {cartTotal.toFixed(2)}</div>
-                    </div>
-                    {orderError && <div className="px-6 text-red-600 text-sm mb-2">{orderError}</div>}
-                    <div className="px-6 pb-6">
-                      <button
-                        className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold text-lg shadow hover:bg-blue-700 transition disabled:opacity-50"
-                        disabled={cart.length === 0 || orderLoading}
-                        onClick={handleConfirmOrder}
-                      >
-                        {orderLoading ? "Placing Order..." : "Confirm Order"}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </Transition.Child>
-          </div>
-        </Dialog>
-      </Transition.Root>
-      {/* Order Success Fullscreen Modal */}
-      <Transition.Root show={orderSuccess} as={Fragment}>
-        <Dialog as="div" className="fixed inset-0 z-[100] overflow-y-auto" onClose={() => setOrderSuccess(false)}>
-          <div className="flex items-center justify-center min-h-screen px-4 py-8 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
-              leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
-            >
-              <div className="fixed inset-0 bg-black bg-opacity-60 transition-opacity" aria-hidden="true" />
-            </Transition.Child>
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
-            >
-              <div className="inline-block align-middle bg-white rounded-2xl text-center overflow-hidden shadow-2xl transform transition-all w-full max-w-sm p-8 z-[101]">
-                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-12 h-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+                  <div className="font-bold text-[#00932A] text-base min-w-[60px] text-right">${(item.price * (item.quantity ?? 1)).toFixed(2)}</div>
+                  <button className="ml-2 text-gray-400 hover:text-red-600" onClick={() => removeFromCart(item.itemId)}>
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">Order Placed!</h2>
-                <p className="text-gray-600 mb-6">Thank you for your order. We&apos;ll start preparing it right away.</p>
-                <button
-                  className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold text-lg shadow hover:bg-blue-700 transition"
-                  onClick={() => setOrderSuccess(false)}
-                >
-                  Done
-                </button>
-              </div>
-            </Transition.Child>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Sticky total & place order button together */}
+        <div className="p-6 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex flex-col gap-4">
+          <div className="rounded-2xl bg-gray-50 p-5">
+            <div className="flex justify-between text-gray-700 mb-2 text-sm">
+              <span>Sub Total</span>
+              <span>${cartTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-700 mb-2 text-sm">
+              <span>Tax 5%</span>
+              <span>${(cartTotal * 0.05).toFixed(2)}</span>
+            </div>
+            <div className="border-t border-dashed border-gray-300 my-3" />
+            <div className="flex justify-between items-center text-lg font-extrabold text-gray-900">
+              <span>Total Amount</span>
+              <span>${(cartTotal * 1.05).toFixed(2)}</span>
+            </div>
           </div>
-        </Dialog>
-      </Transition.Root>
-      {/* Sticky Bottom Bar: Table number and confirm button */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 px-4 py-3 flex items-center justify-between shadow-lg">
-        <div className="font-semibold text-black text-base">Table {tableNumber || "-"}</div>
-        <div className="flex items-center gap-4">
-          <div className="text-base font-semibold text-black">
-            {cartCount} item{cartCount !== 1 ? "s" : ""} | ₹ {cartTotal.toFixed(2)}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+            <input
+              type="text"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#00932A]"
+              placeholder="Enter your name"
+              value={customerName}
+              onChange={e => setCustomerName(e.target.value)}
+              disabled={orderLoading}
+            />
+            {customerNameError && <div className="text-red-600 text-xs mt-1">{customerNameError}</div>}
           </div>
           <button
-            className="bg-blue-600 text-white rounded-full px-6 py-2 font-bold shadow hover:bg-blue-700 transition disabled:opacity-50"
-            disabled={cartCount === 0 || orderLoading}
+            className="w-full py-3 rounded-full bg-[#00932A] text-white font-bold text-lg shadow hover:bg-green-700 transition"
+            style={{ backgroundColor: '#00932A' }}
             onClick={handleConfirmOrder}
+            disabled={cart.length === 0 || orderLoading || !customerName.trim()}
           >
-            {orderLoading ? "Placing..." : "Confirm"}
+            {orderLoading ? "Placing Order..." : "Place Order"}
           </button>
+          {orderError && <div className="text-red-600 text-sm mt-2 text-center">{orderError}</div>}
+          {orderSuccess && <div className="text-[#00932A] text-sm mt-2 text-center font-semibold">Order placed! Thank you.</div>}
         </div>
-        {orderError && <div className="absolute left-1/2 -translate-x-1/2 bottom-16 bg-red-100 text-red-700 px-4 py-2 rounded shadow text-sm">{orderError}</div>}
-        {orderSuccess && (
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-16 bg-green-100 text-green-700 px-4 py-2 rounded shadow text-sm flex items-center gap-2">
-            <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            Order placed!
-          </div>
-        )}
       </div>
+      {/* Cart Modal (mobile) - similar sticky total & button at bottom */}
+      <Transition.Root show={cartModalOpen} as={Fragment}>
+        <Dialog as="div" className="fixed inset-0 z-50" onClose={setCartModalOpen}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
+            leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+          </Transition.Child>
+          <div className="fixed inset-0 flex items-end md:items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300" enterFrom="opacity-0 translate-y-8" enterTo="opacity-100 translate-y-0"
+              leave="ease-in duration-200" leaveFrom="opacity-100 translate-y-0" leaveTo="opacity-0 translate-y-8"
+            >
+              <Dialog.Panel className="w-full max-w-md rounded-t-2xl md:rounded-2xl bg-white p-6 shadow-xl mx-auto">
+                <Dialog.Title className="text-lg font-bold text-green-700 mb-4">Your Order</Dialog.Title>
+                {cart.length === 0 ? (
+                  <div className="text-gray-400 text-center mt-16">Your cart is empty.</div>
+                ) : (
+                  <>
+                    <div className="space-y-4 mb-6">
+                      {cart.map((item) => (
+                        <div key={item.itemId} className="flex items-center gap-3 border-b border-gray-100 pb-3">
+                          {item.imageUrl && (
+                            <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100">
+                              <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="object-cover" />
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <div className="font-semibold text-gray-900 truncate">{item.name}</div>
+                            <div className="text-xs text-gray-500">${item.price.toFixed(2)} x {item.quantity}</div>
+                          </div>
+                          <button className="text-gray-400 hover:text-red-600" onClick={() => removeFromCart(item.itemId)}>
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-gray-100 pt-4 mb-4">
+                      <div className="flex justify-between text-gray-700 mb-2">
+                        <span>Subtotal</span>
+                        <span>${cartTotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-700 mb-2">
+                        <span>Tax 5%</span>
+                        <span>${(cartTotal * 0.05).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-lg font-bold text-green-700">
+                        <span>Total</span>
+                        <span>${(cartTotal * 1.05).toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="w-full py-3 rounded-lg bg-green-600 text-white font-bold text-lg shadow hover:bg-green-700 transition"
+                      onClick={handleConfirmOrder}
+                      disabled={cart.length === 0 || orderLoading}
+                    >
+                      {orderLoading ? "Placing Order..." : "Place Order"}
+                    </button>
+                    {orderError && <div className="text-red-600 text-sm mt-2 text-center">{orderError}</div>}
+                    {orderSuccess && <div className="text-green-700 text-sm mt-2 text-center font-semibold">Order placed! Thank you.</div>}
+                  </>
+                )}
+                <button className="mt-6 w-full py-2 rounded-lg bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition" onClick={() => setCartModalOpen(false)}>
+                  Close
+                </button>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </Dialog>
+      </Transition.Root>
     </div>
   );
 } 

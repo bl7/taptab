@@ -31,10 +31,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
-    if (order.isLocked) {
-      return NextResponse.json({ error: 'Order is locked and cannot be edited' }, { status: 403 });
+    if (order.isLocked || order.status === 'COMPLETED' || order.status === 'CANCELED') {
+      return NextResponse.json({ error: 'Order is locked or already completed/canceled' }, { status: 403 });
     }
     const body = await req.json();
+    // Handle cancellation
+    if (body.status === 'CANCELED') {
+      if (!body.cancellationReason || !body.cancellationReason.trim()) {
+        return NextResponse.json({ error: 'Cancellation reason required' }, { status: 400 });
+      }
+      const updatedOrder = await prisma.order.update({
+        where: { id },
+        data: { status: 'CANCELED', cancellationReason: body.cancellationReason, updatedAt: new Date() },
+        include: { items: true, table: true, restaurant: true },
+      });
+      broadcastOrder({
+        ...updatedOrder,
+        createdAt: updatedOrder.createdAt instanceof Date ? updatedOrder.createdAt.toISOString() : updatedOrder.createdAt,
+        updatedAt: updatedOrder.updatedAt instanceof Date ? updatedOrder.updatedAt.toISOString() : updatedOrder.updatedAt,
+      });
+      return NextResponse.json(updatedOrder);
+    }
     const { items } = body;
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'Items are required' }, { status: 400 });

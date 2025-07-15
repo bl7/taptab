@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ReceiptRenderer from "@/components/ReceiptRenderer";
+import { Dialog, Transition } from "@headlessui/react";
+import { Fragment } from "react";
 
 type Order = {
   id: string;
@@ -12,6 +14,8 @@ type Order = {
   createdAt: string;
   items: Array<{ itemId: string; name: string; price: number; quantity: number; note?: string }>;
   total: number;
+  customerName?: string;
+  cancellationReason?: string;
 };
 
 export default function OrderDetailPage() {
@@ -24,8 +28,12 @@ export default function OrderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [paying, setPaying] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   useEffect(() => {
     async function fetchOrder() {
@@ -100,12 +108,16 @@ export default function OrderDetailPage() {
     }
   }
 
-  async function handlePrint() {
+  async function handlePrint(type: 'kitchen' | 'customer') {
     setPrinting(true);
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch(`/api/orders/${id}/print`, { method: "POST" });
+      const res = await fetch(`/api/orders/${id}/print`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
       const data = await res.json();
       if (!res.ok) {
         throw new Error("Failed to print");
@@ -115,12 +127,39 @@ export default function OrderDetailPage() {
       } else {
         setSuccess("Receipt printed successfully.");
       }
-      // Removed unused refreshReceipt
     } catch (error) {
       console.error("Print error:", error);
       setError("Failed to print receipt");
     } finally {
       setPrinting(false);
+      setPrintModalOpen(false);
+    }
+  }
+
+  async function handleCancelOrder() {
+    if (!cancelReason.trim()) return;
+    setCancelLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch(`/api/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELED", cancellationReason: cancelReason }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOrder(data);
+        setSuccess("Order cancelled.");
+        setCancelModalOpen(false);
+        setCancelReason("");
+      } else {
+        setError(data.error || "Failed to cancel order");
+      }
+    } catch {
+      setError("Failed to cancel order");
+    } finally {
+      setCancelLoading(false);
     }
   }
 
@@ -135,9 +174,14 @@ export default function OrderDetailPage() {
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-forest mb-4">Order Details</h1>
           <div className="mb-4">
-            <div className="text-forest font-semibold">Order ID: <span className="font-mono">{order.id}</span></div>
             <div className="text-forest">Table: {order.table?.name || "-"}</div>
+            {order.customerName && (
+              <div className="text-forest">Customer: <span className="font-semibold">{order.customerName}</span></div>
+            )}
             <div className="text-forest">Status: <span className="inline-block px-2 py-1 rounded text-xs font-bold bg-mint text-forest border border-forest/10">{order.status}</span></div>
+            {order.status === 'CANCELED' && order.cancellationReason && (
+              <div className="text-red-700 mt-2">Cancellation Reason: <span className="font-semibold">{order.cancellationReason}</span></div>
+            )}
             <div className="text-forest">Paid: {order.paid ? "Yes" : "No"}</div>
             <div className="text-forest">Locked: {order.isLocked ? "Yes" : "No"}</div>
             <div className="text-forest">Created: {new Date(order.createdAt).toLocaleString()}</div>
@@ -216,13 +260,114 @@ export default function OrderDetailPage() {
             )}
           </form>
           <div className="mt-6 space-y-3">
+            {order.status !== 'CANCELED' && (
+              <button
+                className="w-full bg-red-600 text-white font-bold py-3 rounded-lg hover:bg-red-700 transition text-lg shadow-md disabled:opacity-60"
+                onClick={() => setCancelModalOpen(true)}
+                disabled={cancelLoading}
+              >
+                Cancel Order
+              </button>
+            )}
+            <Transition.Root show={cancelModalOpen} as={Fragment}>
+              <Dialog as="div" className="fixed inset-0 z-50" onClose={setCancelModalOpen}>
+                <Transition.Child
+                  as={Fragment}
+                  enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
+                  leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
+                >
+                  <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+                </Transition.Child>
+                <div className="fixed inset-0 flex items-center justify-center p-4">
+                  <Transition.Child
+                    as={Fragment}
+                    enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
+                    leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
+                  >
+                    <Dialog.Panel className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl mx-auto">
+                      <Dialog.Title className="text-lg font-bold text-red-700 mb-4">Cancel Order</Dialog.Title>
+                      <div className="mb-4">Please provide a reason for cancelling this order:</div>
+                      <textarea
+                        className="w-full border border-mint rounded p-2 text-forest bg-mint mb-4"
+                        value={cancelReason}
+                        onChange={e => setCancelReason(e.target.value)}
+                        rows={3}
+                        placeholder="Enter reason..."
+                        disabled={cancelLoading}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          className="flex-1 py-2 rounded-lg bg-red-600 text-white font-bold shadow hover:bg-red-700 transition"
+                          onClick={handleCancelOrder}
+                          disabled={cancelLoading || !cancelReason.trim()}
+                        >
+                          {cancelLoading ? 'Cancelling...' : 'Confirm Cancel'}
+                        </button>
+                        <button
+                          className="flex-1 py-2 rounded-lg bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition"
+                          onClick={() => setCancelModalOpen(false)}
+                          disabled={cancelLoading}
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </Dialog.Panel>
+                  </Transition.Child>
+                </div>
+              </Dialog>
+            </Transition.Root>
             <button
               className="w-full bg-forest text-mint font-bold py-3 rounded-lg hover:bg-forest/90 transition text-lg shadow-md disabled:opacity-60"
               disabled={printing}
-              onClick={handlePrint}
+              onClick={() => setPrintModalOpen(true)}
             >
-              {printing ? "Printing..." : "Print Receipt"}
+              Print Receipt
             </button>
+            <Transition.Root show={printModalOpen} as={Fragment}>
+              <Dialog as="div" className="fixed inset-0 z-50" onClose={setPrintModalOpen}>
+                <Transition.Child
+                  as={Fragment}
+                  enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
+                  leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
+                >
+                  <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+                </Transition.Child>
+                <div className="fixed inset-0 flex items-center justify-center p-4">
+                  <Transition.Child
+                    as={Fragment}
+                    enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
+                    leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
+                  >
+                    <Dialog.Panel className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl mx-auto">
+                      <Dialog.Title className="text-lg font-bold text-forest mb-4">Print Receipt</Dialog.Title>
+                      <div className="flex flex-col gap-4">
+                        <button
+                          className="w-full py-3 rounded-lg bg-blue-600 text-white font-bold text-lg shadow hover:bg-blue-700 transition"
+                          onClick={() => handlePrint('kitchen')}
+                          disabled={printing}
+                        >
+                          {printing ? 'Printing...' : 'Print Kitchen Receipt'}
+                        </button>
+                        <button
+                          className="w-full py-3 rounded-lg bg-green-600 text-white font-bold text-lg shadow hover:bg-green-700 transition"
+                          onClick={() => handlePrint('customer')}
+                          disabled={printing}
+                        >
+                          {printing ? 'Printing...' : 'Print Customer Receipt'}
+                        </button>
+                        <button
+                          className="w-full py-2 rounded-lg bg-gray-100 text-gray-700 font-semibold hover:bg-gray-200 transition mt-2"
+                          onClick={() => setPrintModalOpen(false)}
+                          disabled={printing}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </Dialog.Panel>
+                  </Transition.Child>
+                </div>
+              </Dialog>
+            </Transition.Root>
             {!order.isLocked && (
               <button
                 className="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 transition text-lg shadow-md disabled:opacity-60"

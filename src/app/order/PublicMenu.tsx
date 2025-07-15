@@ -1,12 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  FireIcon,
-  StarIcon,
-  SparklesIcon,
-  TagIcon
-} from '@heroicons/react/24/outline';
+import {
+  Egg,
+  Soup,
+  Utensils,
+  Sandwich,
+  Pizza,
+  Leaf,
+  GlassWater,
+  Flame,
+  Sprout,
+  Baby,
+  Fish,
+  Drumstick,
+  Beef,
+  Star,
+  Sparkles,
+  Tag
+} from 'lucide-react';
 import Image from 'next/image';
 
 interface MenuItem {
@@ -29,16 +41,40 @@ interface PublicMenuProps {
 }
 
 const BADGE_CONFIG = {
-  new: { icon: SparklesIcon, color: 'bg-green-100 text-green-800', label: 'New' },
-  spicy: { icon: FireIcon, color: 'bg-red-100 text-red-800', label: 'Spicy' },
-  popular: { icon: StarIcon, color: 'bg-yellow-100 text-yellow-800', label: 'Popular' },
-  'chef-special': { icon: TagIcon, color: 'bg-purple-100 text-purple-800', label: 'Chef&apos;s Special' },
+  new: { icon: Sparkles, color: 'bg-green-100 text-green-800', label: 'New' },
+  spicy: { icon: Flame, color: 'bg-red-100 text-red-800', label: 'Spicy' },
+  popular: { icon: Star, color: 'bg-yellow-100 text-yellow-800', label: 'Popular' },
+  'chef-special': { icon: Tag, color: 'bg-purple-100 text-purple-800', label: "Chef's Special" },
 };
+
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  Breakfast: <Egg className="w-5 h-5 mr-1" />, // Egg
+  Soups: <Soup className="w-5 h-5 mr-1" />, // Soup bowl
+  Pasta: <Utensils className="w-5 h-5 mr-1" />, // Noodles (fallback)
+  "Main Course": <Utensils className="w-5 h-5 mr-1" />, // Plate (fallback)
+  Burgers: <Sandwich className="w-5 h-5 mr-1" />, // Burger
+  Pizza: <Pizza className="w-5 h-5 mr-1" />, // Pizza
+  Salad: <Leaf className="w-5 h-5 mr-1" />, // Leaf
+  Drinks: <GlassWater className="w-5 h-5 mr-1" />, // Glass
+  Desserts: <Utensils className="w-5 h-5 mr-1" />, // Cupcake (fallback)
+  Sides: <Utensils className="w-5 h-5 mr-1" />, // Fries (fallback)
+  Sushi: <Utensils className="w-5 h-5 mr-1" />, // Sushi (fallback)
+  Grill: <Flame className="w-5 h-5 mr-1" />, // Flame
+  Vegan: <Sprout className="w-5 h-5 mr-1" />, // Sprout
+  Kids: <Baby className="w-5 h-5 mr-1" />, // Baby
+  Seafood: <Fish className="w-5 h-5 mr-1" />, // Fish
+  Chicken: <Drumstick className="w-5 h-5 mr-1" />, // Drumstick
+  Steak: <Beef className="w-5 h-5 mr-1" />, // Beef/Steak
+  Rice: <Utensils className="w-5 h-5 mr-1" />, // Rice bowl (fallback)
+  Noodles: <Utensils className="w-5 h-5 mr-1" />, // Noodles (fallback)
+};
+const DEFAULT_CATEGORY_ICON = <Utensils className="w-5 h-5 mr-1" />;
 
 export default function PublicMenu({ restaurantId }: PublicMenuProps) {
   const [menuData, setMenuData] = useState<MenuCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -118,55 +154,79 @@ export default function PublicMenu({ restaurantId }: PublicMenuProps) {
 
   return (
     <div className="space-y-8">
-      {menuData.map((category) => (
-        <div key={category.categoryId} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">{category.categoryName}</h2>
-          </div>
-          
-          <div className="p-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {category.items.map((item) => (
-                <div
-                  key={item.itemId}
-                  className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
-                >
-                  {item.imageUrl && (
-                    <div className="aspect-w-16 aspect-h-9">
-                      <Image
-                        src={item.imageUrl}
-                        alt={item.name}
-                        layout="fill"
-                        objectFit="cover"
-                      />
-                    </div>
-                  )}
-                  
-                  <div className="p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="text-lg font-medium text-gray-900">{item.name}</h3>
-                      {item.badge && getBadgeDisplay(item.badge)}
-                    </div>
-                    
-                    {item.description && (
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
+      {/* Category Tabs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 w-full px-4 pb-2 max-h-32 overflow-y-auto">
+        <button
+          onClick={() => setSelectedCategory(null)}
+          className={`flex flex-col items-center px-5 py-3 rounded-xl font-semibold text-base border transition-all shadow-sm ${selectedCategory === null ? "bg-[#00932A] text-white" : "bg-gray-100 text-gray-700 hover:bg-[#00932A]/10"}`}
+        >
+          <span className="mb-1">{DEFAULT_CATEGORY_ICON}</span>
+          <span>All</span>
+          <span className="text-xs font-normal mt-1">{menuData.reduce((sum, c) => sum + c.items.length, 0)} Items</span>
+        </button>
+        {menuData.filter(cat => cat.items.length > 0).map((cat) => (
+          <button
+            key={cat.categoryId}
+            onClick={() => setSelectedCategory(cat.categoryName)}
+            className={`flex flex-col items-center px-5 py-3 rounded-xl font-semibold text-base border transition-all shadow-sm ${selectedCategory === cat.categoryName ? "bg-[#00932A] text-white ring-2 ring-[#00932A]" : "bg-gray-100 text-gray-700 hover:bg-[#00932A]/10"}`}
+          >
+            <span className="mb-1">{CATEGORY_ICONS[cat.categoryName] || DEFAULT_CATEGORY_ICON}</span>
+            <span>{cat.categoryName}</span>
+            <span className="text-xs font-normal mt-1">{cat.items.length} Items</span>
+          </button>
+        ))}
+      </div>
+      {/* Filtered Menu Grid */}
+      <div className="space-y-8">
+        {(selectedCategory
+          ? menuData.filter((cat) => cat.categoryName === selectedCategory && cat.items.length > 0)
+          : menuData.filter((cat) => cat.items.length > 0)
+        ).map((category) => (
+          <div key={category.categoryId} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">{category.categoryName}</h2>
+            </div>
+            <div className="p-6">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {category.items.map((item) => (
+                  <div
+                    key={item.itemId}
+                    className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                  >
+                    {item.imageUrl && (
+                      <div className="aspect-w-16 aspect-h-9">
+                        <Image
+                          src={item.imageUrl}
+                          alt={item.name}
+                          layout="fill"
+                          objectFit="cover"
+                        />
+                      </div>
                     )}
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-semibold text-gray-900">
-                        ${item.price.toFixed(2)}
-                      </span>
-                      <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Add to Order
-                      </button>
+                    <div className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="text-lg font-medium text-gray-900">{item.name}</h3>
+                        {item.badge && getBadgeDisplay(item.badge)}
+                      </div>
+                      {item.description && (
+                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg font-semibold text-gray-900">
+                          ${item.price.toFixed(2)}
+                        </span>
+                        <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                          Add to Order
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 } 

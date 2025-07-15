@@ -3,16 +3,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, Transition } from "@headlessui/react";
 import { Fragment } from "react";
+import { Egg, Soup, Utensils, Sandwich, Pizza, Leaf, GlassWater, Flame, Sprout, Baby, Fish, Drumstick, Beef, X } from 'lucide-react';
+import Image from "next/image";
 
 export default function NewOrderPage() {
   type Table = { id: string; name: string; description?: string; restaurantId?: string };
-  type MenuItem = { itemId: string; name: string; price: number };
-  type ActiveOrder = { id: string; items?: MenuItem[]; note?: string; status?: string; createdAt?: string; total?: number };
-  type MenuCategory = { itemId: string; name: string; items: MenuItem[] };
+  type MenuItem = { itemId: string; name: string; price: number; quantity?: number; imageUrl?: string; description?: string };
+  type ActiveOrder = { id: string; items?: MenuItem[]; note?: string; status?: string; createdAt?: string; total?: number; customerName?: string; tableId?: string };
+  type MenuCategory = { categoryId: string; categoryName: string; items: MenuItem[]; visible?: boolean };
   const [tables, setTables] = useState<Table[]>([]);
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [menu, setMenu] = useState<MenuCategory[]>([]);
-  const [cart, setCart] = useState<{ itemId: string; name: string; price: number; quantity: number }[]>([]);
+  const [cart, setCart] = useState<{ itemId: string; name: string; price: number; quantity: number; imageUrl?: string; description?: string }[]>([]);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{ orderId: string } | null>(null);
@@ -21,7 +23,11 @@ export default function NewOrderPage() {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [editingExisting, setEditingExisting] = useState(false);
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
-  const [orderSelectionModalOpen, setOrderSelectionModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [modalQty, setModalQty] = useState(1);
+  const [modalNote, setModalNote] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -40,6 +46,7 @@ export default function NewOrderPage() {
       const menuRes = await fetch(`/api/public/menu?restaurantId=${rid}`);
       const menuData = await menuRes.json();
       setMenu(menuData.layout || []);
+      console.log('Menu categories:', menuData.layout);
     }
     fetchData();
   }, []);
@@ -52,11 +59,15 @@ export default function NewOrderPage() {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 1) {
         setActiveOrders(data);
-        setOrderSelectionModalOpen(true);
+        // setOrderSelectionModalOpen(true); // This line is removed
       } else if (Array.isArray(data) && data.length === 1) {
         setActiveOrderId(data[0].id);
         setEditingExisting(true);
-        setCart(data[0].items ? data[0].items.map((i: MenuItem & { quantity: number }) => ({ itemId: i.itemId, name: i.name, price: i.price, quantity: i.quantity })) : []);
+        // When mapping cart items from API, look up imageUrl/description from menu:
+        setCart(data[0].items ? data[0].items.map((i: MenuItem & { quantity: number }) => {
+          const menuItem = menu.flatMap((cat) => cat.items).find((m) => m.itemId === i.itemId);
+          return { itemId: i.itemId, name: i.name, price: i.price, quantity: i.quantity, imageUrl: menuItem?.imageUrl, description: menuItem?.description };
+        }) : []);
         setNote(data[0].note || "");
       } else {
         setActiveOrderId(null);
@@ -66,24 +77,38 @@ export default function NewOrderPage() {
       }
     }
     checkActiveOrders();
-  }, [selectedTable, restaurantId]);
-
-  function addToCart(item: MenuItem) {
-    setCart((prev) => {
-      const existing = prev.find((i) => i.itemId === item.itemId);
-      if (existing) {
-        return prev.map((i) => i.itemId === item.itemId ? { ...i, quantity: i.quantity + 1 } : i);
-      }
-      return [...prev, { itemId: item.itemId, name: item.name, price: item.price, quantity: 1 }];
-    });
-  }
+  }, [selectedTable, restaurantId, menu]); // Added 'menu' to dependency array
 
   function removeFromCart(itemId: string) {
     setCart((prev) => prev.filter((i) => i.itemId !== itemId));
   }
 
   function updateQuantity(itemId: string, quantity: number) {
-    setCart((prev) => prev.map((i) => i.itemId === itemId ? { ...i, quantity: Math.max(1, quantity) } : i));
+    setCart((prev) => prev.map((i) => i.itemId === itemId ? { ...i, quantity: Math.max(1, quantity), imageUrl: i.imageUrl ?? undefined, description: i.description ?? undefined } : i));
+  }
+
+  function openItemModal(item: MenuItem) {
+    setSelectedItem(item);
+    const cartItem = cart.find((i) => i.itemId === item.itemId);
+    setModalQty(cartItem?.quantity ?? 1);
+    setModalNote("");
+  }
+  function closeItemModal() {
+    setSelectedItem(null);
+  }
+  function handleAddFromModal() {
+    setCart((prev) => {
+      const existing = prev.find((i) => i.itemId === selectedItem!.itemId);
+      if (existing) {
+        return prev.map((i) =>
+          i.itemId === selectedItem!.itemId
+            ? { ...i, quantity: modalQty, description: selectedItem!.description, imageUrl: selectedItem!.imageUrl }
+            : i
+        );
+      }
+      return [...prev, { ...selectedItem!, quantity: modalQty, description: selectedItem!.description, imageUrl: selectedItem!.imageUrl }];
+    });
+    closeItemModal();
   }
 
   const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
@@ -147,217 +172,282 @@ export default function NewOrderPage() {
     );
   }
 
+  // Category icon mapping for all common restaurant categories
+  const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+    Breakfast: <Egg className="w-5 h-5 mr-1" />, // Egg
+    Soups: <Soup className="w-5 h-5 mr-1" />, // Soup bowl
+    Pasta: <Utensils className="w-5 h-5 mr-1" />, // Noodles (fallback)
+    "Main Course": <Utensils className="w-5 h-5 mr-1" />, // Plate (fallback)
+    Burgers: <Sandwich className="w-5 h-5 mr-1" />, // Burger
+    Pizza: <Pizza className="w-5 h-5 mr-1" />, // Pizza
+    Salad: <Leaf className="w-5 h-5 mr-1" />, // Leaf
+    Drinks: <GlassWater className="w-5 h-5 mr-1" />, // Glass
+    Desserts: <Utensils className="w-5 h-5 mr-1" />, // Cupcake (fallback)
+    Sides: <Utensils className="w-5 h-5 mr-1" />, // Fries (fallback)
+    Sushi: <Utensils className="w-5 h-5 mr-1" />, // Sushi (fallback)
+    Grill: <Flame className="w-5 h-5 mr-1" />, // Flame
+    Vegan: <Sprout className="w-5 h-5 mr-1" />, // Sprout
+    Kids: <Baby className="w-5 h-5 mr-1" />, // Baby
+    Seafood: <Fish className="w-5 h-5 mr-1" />, // Fish
+    Chicken: <Drumstick className="w-5 h-5 mr-1" />, // Drumstick
+    Steak: <Beef className="w-5 h-5 mr-1" />, // Beef/Steak
+    Rice: <Utensils className="w-5 h-5 mr-1" />, // Rice bowl (fallback)
+    Noodles: <Utensils className="w-5 h-5 mr-1" />, // Noodles (fallback)
+  };
+  const DEFAULT_CATEGORY_ICON = <Utensils className="w-5 h-5 mr-1" />; // Fallback
+
+  // --- Filtered menu logic ---
+  const filteredMenu = selectedCategory
+    ? menu.filter((cat) => cat.categoryName === selectedCategory && cat.items.length > 0)
+    : menu.filter((cat) => cat.items.length > 0);
+
+  // --- UI ---
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold text-black mb-6">New Order</h1>
-      {/* Modal for selecting active order if multiple exist */}
-      <Transition show={orderSelectionModalOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={() => setOrderSelectionModalOpen(false)}>
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
-            leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-black bg-opacity-30" />
-          </Transition.Child>
-          <div className="fixed inset-0 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#F6F8F7] flex flex-row">
+      {/* Left: Menu and Categories */}
+      <div className="flex-1 flex flex-col">
+        {/* Top bar: Search and Categories */}
+        <div className="flex flex-col gap-4">
+          {/* Search Bar */}
+          <div className="flex items-center bg-white rounded-xl shadow px-4 py-2 border border-gray-200 mt-4 mb-2 mx-4">
+            <svg className="w-5 h-5 text-[#00932A] mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" strokeWidth={2} /><path d="M21 21l-4.35-4.35" strokeWidth={2} /></svg>
+            <input
+              type="text"
+              placeholder="Search Product here..."
+              className="flex-1 bg-transparent outline-none text-base text-gray-900"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          {/* Category Tabs */}
+          <div className="flex gap-3 w-full overflow-x-auto px-4 pb-2">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`flex flex-col items-center px-5 py-3 rounded-xl font-semibold text-base border transition-all whitespace-nowrap shadow-sm ${selectedCategory === null ? "bg-[#00932A] text-white" : "bg-gray-100 text-gray-700 hover:bg-[#00932A]/10"}`}
+            >
+              <span className="mb-1">{DEFAULT_CATEGORY_ICON}</span>
+              <span>All</span>
+              <span className="text-xs font-normal mt-1">{menu.reduce((sum, c) => sum + c.items.length, 0)} Items</span>
+            </button>
+            {menu.filter(cat => cat.items.length > 0).map((cat) => (
+              <button
+                key={cat.categoryId}
+                onClick={() => setSelectedCategory(cat.categoryName)}
+                className={`flex flex-col items-center px-5 py-3 rounded-xl font-semibold text-base border transition-all whitespace-nowrap shadow-sm ${selectedCategory === cat.categoryName ? "bg-[#00932A] text-white" : "bg-gray-100 text-gray-700 hover:bg-[#00932A]/10"}`}
+              >
+                <span className="mb-1">{CATEGORY_ICONS[cat.categoryName] || DEFAULT_CATEGORY_ICON}</span>
+                <span>{cat.categoryName}</span>
+                <span className="text-xs font-normal mt-1">{cat.items.length} Items</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Menu Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 px-4 py-4">
+          {filteredMenu.flatMap((cat) =>
+            cat.items.map((item) => {
+              const cartItem = cart.find((i) => i.itemId === item.itemId);
+              return (
+                <div
+                  key={item.itemId}
+                  className={`bg-white rounded-2xl shadow-md border border-gray-100 flex flex-col p-4 hover:shadow-lg transition group cursor-pointer relative ${cartItem ? 'ring-2 ring-[#00932A]' : ''}`}
+                  onClick={() => openItemModal(item)}
+                >
+                  {item.imageUrl && (
+                    <div className="w-full h-32 mb-2 relative rounded-xl overflow-hidden bg-gray-100">
+                      <Image
+                        src={item.imageUrl}
+                        alt={item.name}
+                        fill
+                        className="object-cover group-hover:scale-105 transition"
+                      />
+                    </div>
+                  )}
+                  <div className="flex-1 flex flex-col">
+                    <div className="flex items-center gap-1 mb-1">
+                      <h3 className="font-semibold text-base text-gray-900 flex-1 truncate">{item.name}</h3>
+                    </div>
+                    <span className="font-bold text-[#00932A] text-lg">${item.price.toFixed(2)}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        {/* Item Modal */}
+        <Transition.Root show={!!selectedItem} as={Fragment}>
+          <Dialog as="div" className="fixed inset-0 z-50" onClose={closeItemModal}>
             <Transition.Child
               as={Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
+              enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
+              leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
             >
-              <Dialog.Panel className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
-                <Dialog.Title className="text-lg font-bold mb-4 text-black">Multiple Active Orders for This Table</Dialog.Title>
-                <div className="space-y-4">
-                  {activeOrders.map((order) => {
-                    const itemCount = order.items ? (order.items as Array<MenuItem & { quantity: number }>).reduce((sum, i) => sum + (i.quantity || 0), 0) : 0;
-                    return (
-                      <div key={order.id} className="border rounded p-3 flex flex-col gap-1">
-                        <div className="flex justify-between items-center">
-                          <span className="font-mono text-black">Order: {order.id.slice(0, 8)}</span>
-                          <span className="text-xs text-gray-500">{order.createdAt ? new Date(order.createdAt).toLocaleString() : 'Unknown'}</span>
-                          <span className="inline-block px-2 py-1 rounded text-xs font-bold bg-gray-200 text-black mr-2">{order.status}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-gray-700">
-                          <span>Items: {itemCount}</span>
-                          <span>Total: ${order.total?.toFixed(2) ?? '--'}</span>
-                        </div>
-                        <div className="text-sm text-gray-700">{order.items ? (order.items as Array<MenuItem & { quantity: number }>).map(i => `${i.quantity} x${i.name}`).join(", ") : "-"}</div>
-                        {order.note && <div className="text-xs text-blue-700">Note: {order.note}</div>}
-                        <button
-                          className="mt-2 bg-blue-600 text-white px-3 py-1 rounded font-semibold hover:bg-blue-700"
-                          onClick={async () => {
-                            setActiveOrderId(order.id);
-                            setEditingExisting(true);
-                            // Fetch full order details (with items)
-                            const res = await fetch(`/api/orders/${order.id}`);
-                            const data = await res.json();
-                            setCart(data.items.map((i: MenuItem & { quantity: number }) => ({ itemId: i.itemId, name: i.name, price: i.price, quantity: i.quantity })));
-                            setNote(data.note || "");
-                            setOrderSelectionModalOpen(false);
-                          }}
-                        >
-                          Add to This Order
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-6 flex justify-end gap-2">
-                  <button
-                    className="bg-gray-200 text-black px-4 py-2 rounded font-semibold hover:bg-gray-300"
-                    onClick={() => {
-                      setActiveOrderId(null);
-                      setEditingExisting(false);
-                      setCart([]);
-                      setNote("");
-                      setOrderSelectionModalOpen(false);
-                    }}
-                  >
-                    Create New Order
-                  </button>
-                </div>
-              </Dialog.Panel>
+              <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
             </Transition.Child>
-          </div>
-        </Dialog>
-      </Transition>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label className="block font-semibold mb-1 text-black">Table</label>
-          <select
-            className="w-full border rounded p-2 text-black"
-            value={selectedTable}
-            onChange={e => setSelectedTable(e.target.value)}
-            required
-          >
-            <option value="">Select a table...</option>
-            {tables.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-        </div>
-        {editingExisting && (
-          <div className="mb-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded">
-            Editing existing active order for this table. Add or update items and click &quot;Place Order&quot; to update.
-          </div>
-        )}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {menu.map((category) => (
-            <div key={category.itemId}>
-              <h2 className="text-lg font-semibold mb-2 text-black">{category.name}</h2>
-              {(Array.isArray(category.items) ? category.items : []).map((item: MenuItem) => {
-                const cartItem = cart.find((i) => i.itemId === item.itemId);
-                return (
-                  <div key={item.itemId} className="flex items-center justify-between mb-2 p-2 border rounded bg-white">
-                    <div>
-                      <div className="font-medium text-black">{item.name}</div>
-                      <div className="text-sm text-gray-700">${item.price.toFixed(2)}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!cartItem ? (
-                        <button
-                          type="button"
-                          className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                          onClick={() => addToCart(item)}
-                        >
-                          Add to Cart
-                        </button>
-                      ) : (
-                        <span className="text-green-700 font-semibold">In Cart</span>
+            <div className="fixed inset-0 flex items-center justify-center p-4">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl mx-auto">
+                  {selectedItem && (
+                    <>
+                      {selectedItem.imageUrl && (
+                        <div className="w-full h-48 mb-4 relative rounded-xl overflow-hidden bg-gray-100">
+                          <Image src={selectedItem.imageUrl} alt={selectedItem.name} fill className="object-cover" />
+                        </div>
                       )}
+                      <h2 className="text-xl font-bold text-gray-900 mb-2">{selectedItem.name}</h2>
+                      <p className="text-gray-600 text-sm mb-4">{selectedItem.description}</p>
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="font-bold text-[#00932A] text-lg">${selectedItem.price.toFixed(2)}</span>
+                        <div className="flex items-center gap-1 ml-auto">
+                          <button
+                            className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700 flex items-center justify-center text-base"
+                            onClick={() => setModalQty(q => Math.max(1, q - 1))}
+                          >-</button>
+                          <span className="font-semibold text-gray-900 min-w-[24px] text-center">{modalQty}</span>
+                          <button
+                            className="w-8 h-8 rounded-full bg-[#00932A] text-white hover:bg-green-700 flex items-center justify-center text-base"
+                            onClick={() => setModalQty(q => q + 1)}
+                          >+</button>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Add note..."
+                        className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#00932A] mb-4"
+                        value={modalNote}
+                        onChange={e => setModalNote(e.target.value)}
+                      />
+                      <button
+                        className="w-full py-3 rounded-xl bg-[#00932A] text-white font-bold text-lg shadow hover:bg-green-700 transition"
+                        onClick={handleAddFromModal}
+                      >
+                        Add to Order
+                      </button>
+                    </>
+                  )}
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </Dialog>
+        </Transition.Root>
+        {/* Table Orders at Bottom */}
+        <div className="fixed bottom-0 left-56 right-[400px] z-30 flex items-center gap-4 px-6 py-3 bg-white border-t border-gray-200 overflow-x-auto" style={{ minHeight: '64px', maxWidth: 'calc(100vw - 400px - 14rem)' }}>
+          {activeOrders.filter(order => order.tableId === selectedTable).map((order) => (
+            <button
+              key={order.id}
+              className={`flex flex-col items-start min-w-[180px] max-w-xs px-5 py-3 bg-yellow-50 border border-yellow-200 text-yellow-900 font-semibold text-base hover:bg-yellow-100 transition whitespace-nowrap ${activeOrderId === order.id ? 'ring-2 ring-[#00932A]' : ''}`}
+              onClick={async () => {
+                setActiveOrderId(order.id);
+                setEditingExisting(true);
+                // Fetch full order details (with items)
+                const res = await fetch(`/api/orders/${order.id}`);
+                const data = await res.json();
+                setCart(data.items.map((i: MenuItem & { quantity: number }) => {
+                  const menuItem = menu.flatMap((cat) => cat.items).find((m) => m.itemId === i.itemId);
+                  return { itemId: i.itemId, name: i.name, price: i.price, quantity: i.quantity, imageUrl: menuItem?.imageUrl, description: menuItem?.description };
+                }));
+                setNote(data.note || "");
+              }}
+            >
+              <span className="font-bold text-base truncate w-full text-left">{order.customerName || 'No Name'}</span>
+              <span className="text-xs text-gray-600 mt-1">{order.items?.length || 0} items</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* Right: Order Summary */}
+      <form className="w-[400px] bg-white border-l border-gray-100 shadow-lg min-h-screen h-screen flex flex-col sticky top-0" onSubmit={handleSubmit}>
+        {/* Table selection styled as card */}
+        <div className="border-b border-gray-100 p-6">
+          <div className="rounded-2xl bg-gray-50 p-4 flex items-center mb-2">
+            <div className="flex-1">
+              <div className="text-lg font-extrabold text-gray-900">Table</div>
+              <select
+                className="w-full mt-1 rounded-lg border border-gray-200 px-3 py-2 text-base text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#00932A]"
+                value={selectedTable}
+                onChange={e => setSelectedTable(e.target.value)}
+                required
+              >
+                <option value="">Select a table...</option>
+                {tables.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+        {/* Cart Items */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {cart.length === 0 ? (
+            <div className="text-gray-400 text-center mt-16">Cart is empty.</div>
+          ) : (
+            <div className="space-y-4 mb-8">
+              {cart.map((item) => (
+                <div key={item.itemId} className="flex items-center gap-3 bg-white rounded-2xl shadow border border-gray-100 px-3 py-2">
+                  {item.imageUrl?.length ? (
+                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                      <Image src={item.imageUrl} alt={item.name} width={56} height={56} className="object-cover" />
+                    </div>
+                  ) : null}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-900 truncate text-base mb-1">{item.name}</div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span className="font-bold text-[#00932A] text-base">${item.price.toFixed(2)}</span>
+                      {/* Quantity controls */}
+                      <div className="flex items-center gap-1 ml-2">
+                        <button
+                          className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 hover:bg-[#00932A] hover:text-white flex items-center justify-center text-base"
+                          onClick={() => updateQuantity(item.itemId, (item.quantity ?? 1) - 1)}
+                        >-</button>
+                        <span className="font-semibold text-gray-900 min-w-[16px] text-center text-base">{item.quantity}</span>
+                        <button
+                          className="w-6 h-6 rounded-full bg-[#00932A] text-white hover:bg-green-700 flex items-center justify-center text-base"
+                          onClick={() => updateQuantity(item.itemId, (item.quantity ?? 1) + 1)}
+                        >+</button>
+                      </div>
                     </div>
                   </div>
-                );
-              })}
+                  <div className="font-bold text-[#00932A] text-lg min-w-[60px] text-right">${(item.price * (item.quantity ?? 1)).toFixed(2)}</div>
+                  <button className="ml-2 text-gray-400 hover:text-red-600" onClick={() => removeFromCart(item.itemId)}>
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
-        <CartSummary
-          cart={cart}
-          total={total}
-          note={note}
-          setNote={setNote}
-          error={error}
-          submitting={submitting}
-          updateQuantity={updateQuantity}
-          removeFromCart={removeFromCart}
-        />
+        {/* Sticky total & place order button together */}
+        <div className="border-t border-gray-100 bg-white sticky bottom-0 z-10 flex flex-col gap-2 p-6">
+          <div className="rounded-2xl bg-gray-50 p-4">
+            <div className="flex justify-between text-gray-700 mb-1 text-base">
+              <span>Sub Total</span>
+              <span>${total.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-700 mb-1 text-base">
+              <span>Tax 5%</span>
+              <span>${(total * 0.05).toFixed(2)}</span>
+            </div>
+            <div className="border-t border-dashed border-gray-300 my-2" />
+            <div className="flex justify-between items-center text-xl font-extrabold text-gray-900">
+              <span>Total Amount</span>
+              <span>${(total * 1.05).toFixed(2)}</span>
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="w-full py-3 rounded-xl bg-[#00932A] text-white font-bold text-xl shadow hover:bg-green-700 transition"
+            disabled={submitting || cart.length === 0}
+          >
+            {submitting ? "Submitting..." : "Place Order"}
+          </button>
+          {error && <div className="text-red-600 text-base mt-1 text-center">{error}</div>}
+          {success && <div className="text-[#00932A] text-base mt-1 text-center font-semibold">Order placed! Thank you.</div>}
+        </div>
       </form>
-    </div>
-  );
-}
-
-function CartSummary({ cart, total, note, setNote, error, submitting, updateQuantity, removeFromCart }: {
-  cart: { itemId: string; name: string; price: number; quantity: number }[];
-  total: number;
-  note: string;
-  setNote: (v: string) => void;
-  error: string | null;
-  submitting: boolean;
-  updateQuantity: (itemId: string, quantity: number) => void;
-  removeFromCart: (itemId: string) => void;
-}) {
-  return (
-    <div className="bg-white rounded-lg shadow p-6 border border-gray-200 mt-8">
-      <h3 className="text-xl font-bold mb-4 text-black">Cart</h3>
-      {cart.length === 0 ? (
-        <div className="text-gray-500">Cart is empty.</div>
-      ) : (
-        <ul className="divide-y divide-gray-200 mb-4">
-          {cart.map((item) => (
-            <li key={item.itemId} className="py-2 flex items-center justify-between">
-              <div>
-                <div className="font-medium text-black">{item.name}</div>
-                <div className="text-sm text-gray-700">${item.price.toFixed(2)} × {item.quantity}</div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="px-2 py-1 bg-gray-200 rounded text-black"
-                  onClick={() => updateQuantity(item.itemId, item.quantity - 1)}
-                  disabled={item.quantity <= 1}
-                >
-                  -
-                </button>
-                <span className="text-black font-semibold">{item.quantity}</span>
-                <button
-                  type="button"
-                  className="px-2 py-1 bg-gray-200 rounded text-black"
-                  onClick={() => updateQuantity(item.itemId, item.quantity + 1)}
-                >
-                  +
-                </button>
-                <button
-                  type="button"
-                  className="ml-2 text-red-600"
-                  onClick={() => removeFromCart(item.itemId)}
-                >
-                  Remove
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="flex justify-between items-center mb-2">
-        <span className="font-semibold text-black">Total:</span>
-        <span className="text-xl font-bold text-black">${total.toFixed(2)}</span>
-      </div>
-      <textarea
-        className="w-full border rounded p-2 mt-2 text-black"
-        placeholder="Add a note (optional)"
-        value={note}
-        onChange={e => setNote(e.target.value)}
-      />
-      {error && <div className="text-red-600 mt-2">{error}</div>}
-      <button
-        type="submit"
-        className="mt-4 w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 transition text-lg shadow-md disabled:opacity-60"
-        disabled={submitting || cart.length === 0}
-      >
-        {submitting ? "Submitting..." : "Place Order"}
-      </button>
     </div>
   );
 } 
