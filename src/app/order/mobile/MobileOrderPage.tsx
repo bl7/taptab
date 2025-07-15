@@ -36,6 +36,8 @@ export default function MobileOrderPage() {
   // Order stepper state
   const [orderStep, setOrderStep] = useState<'cart' | 'confirm' | 'success'>('cart');
   const [customerName, setCustomerName] = useState('');
+  // Add modalQty state
+  const [modalQty, setModalQty] = useState(1);
 
   useEffect(() => {
     if (!restaurantId) return;
@@ -101,9 +103,11 @@ export default function MobileOrderPage() {
   // Modal open/close helpers
   function openItemModal(item: MenuItem) {
     setItemModal({ open: true, item });
+    setModalQty(1);
   }
   function closeItemModal() {
     setItemModal({ open: false, item: null });
+    setModalQty(1);
   }
 
   async function handleConfirmOrder() {
@@ -402,12 +406,12 @@ export default function MobileOrderPage() {
                         </div>
                         <div className="flex items-center gap-3 mb-6">
                           <span className="font-semibold text-gray-900">Quantity</span>
-                          <QuantitySelector onChange={q => setItemModal(im => im.item ? { ...im, quantity: q } : im)} />
+                          <QuantitySelector onChange={setModalQty} />
                         </div>
                         <button
                           className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-lg shadow-lg active:scale-95 transition"
                           onClick={() => {
-                            addToCart(itemModal.item!, 1);
+                            addToCart(itemModal.item!, modalQty);
                             closeItemModal();
                           }}
                         >
