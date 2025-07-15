@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/authOptions';
 import pool from '@/lib/pg';
-import cuid from 'cuid';
+import { createId } from '@paralleldrive/cuid2';
 
 export async function GET() {
   try {
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     // Only one menu can be published at a time, so new menus are not published by default
     const { rows } = await pool.query(
       'INSERT INTO "Menu" (id, "restaurantId", name, layout, published, "updatedAt") VALUES ($1, $2, $3, $4, false, now()) RETURNING *',
-      [cuid(), user.restaurantId, name.trim(), JSON.stringify(layout || [])]
+      [createId(), user.restaurantId, name.trim(), JSON.stringify(layout || [])]
     );
     return NextResponse.json(rows[0], { status: 201 });
   } catch (error) {

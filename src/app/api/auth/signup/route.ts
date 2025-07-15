@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/pg";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import cuid from "cuid";
+import { createId } from '@paralleldrive/cuid2';
 
 const SignupSchema = z.object({
   email: z.string().email(),
@@ -25,8 +25,8 @@ export async function POST(req: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
     // Generate cuid for user id and restaurant id
-    const userId = cuid();
-    const restaurantId = cuid();
+    const userId = createId();
+    const restaurantId = createId();
     // Insert user and restaurant in a transaction
     const client = await pool.connect();
     try {

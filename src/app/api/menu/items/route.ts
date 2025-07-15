@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/authOptions';
 import pool from '@/lib/pg';
-import cuid from 'cuid';
+import { createId } from '@paralleldrive/cuid2';
 
 export async function GET() {
   try {
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         "categoryId", "restaurantId", "createdAt", "updatedAt"
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), now()) RETURNING *`,
       [
-        cuid(),
+        createId(),
         name.trim(),
         description?.trim() || null,
         price,

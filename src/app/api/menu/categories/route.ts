@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/authOptions';
 import pool from '@/lib/pg';
-import cuid from 'cuid';
+import { createId } from '@paralleldrive/cuid2';
 
 export async function GET() {
   try {
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     const { rows } = await pool.query(
       'INSERT INTO "MenuCategory" (id, name, "restaurantId", "createdAt", "updatedAt") VALUES ($1, $2, $3, now(), now()) RETURNING *',
-      [cuid(), name.trim(), session.user.restaurantId]
+      [createId(), name.trim(), session.user.restaurantId]
     );
 
     return NextResponse.json(rows[0], { status: 201 });
