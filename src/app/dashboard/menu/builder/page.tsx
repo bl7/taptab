@@ -1,17 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Eye, Smartphone, Monitor, Settings } from 'lucide-react';
+import { useRouter } from 'next/navigation';import { ArrowLeft, Save, Eye, Plus, Settings } from 'lucide-react';
 import type { Menu, MenuCategory, MenuItem } from './MenuBuilder';
 import MenuBuilder from './MenuBuilder';
-import MenuPreview from './MenuPreview';
 
 export default function MenuBuilderPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [view, setView] = useState<'builder' | 'preview'>('builder');
-  const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
+  // Remove preview state
   const [menu, setMenu] = useState<Menu | null>(null);
   const [allMenus, setAllMenus] = useState<Menu[]>([]);
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null);
@@ -85,6 +82,12 @@ export default function MenuBuilderPage() {
   };
 
   const handleMenuChange = async (menuId: string) => {
+    if (menuId === 'new') {
+      // Create a new menu
+      setMenu({ id: null, name: 'Untitled Menu', published: false, categories: [] });
+      setSelectedMenuId(null);
+      return;
+    }
     setSelectedMenuId(menuId);
     const selectedMenu = allMenus.find((m) => m.id === menuId) as (Menu & { layout?: unknown });
     
@@ -277,12 +280,6 @@ export default function MenuBuilderPage() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <a
-                href="/dashboard/menu"
-                className="inline-flex items-center px-4 py-2 border border-blue-600 text-blue-700 bg-white rounded-lg shadow-sm hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition"
-              >
-                Switch to Classic
-              </a>
               {/* Menu Selector */}
               <div className="flex items-center space-x-3">
                 <label htmlFor="menu-select" className="text-sm font-medium text-gray-700">
@@ -296,16 +293,13 @@ export default function MenuBuilderPage() {
                 >
                   {allMenus.map((menu) => (
                     <option key={menu.id} value={String(menu.id ?? '')}>
-                      {menu.name} {menu.published ? '(Published)' : '(Draft)'}
+                      {menu.name} {menu.published ? '🌟 (Published)' : '(Draft)'}
                     </option>
                   ))}
-                  {allMenus.length === 0 && (
-                    <option value="">No menus available</option>
-                  )}
+                  <option value="new">+ Create New Menu</option>
                 </select>
               </div>
             </div>
-            
             <div className="flex items-center space-x-3">
               <button
                 onClick={handleSave}
@@ -328,99 +322,12 @@ export default function MenuBuilderPage() {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-8">
-            <button
-              onClick={() => setView('builder')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                view === 'builder'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Menu Builder
-            </button>
-            <button
-              onClick={() => setView('preview')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                view === 'preview'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Preview
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Preview Mode Toggle */}
-      {view === 'preview' && (
-        <div className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-            <div className="flex items-center justify-center space-x-4">
-              <span className="text-sm text-gray-600">Preview Mode:</span>
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setPreviewMode('desktop')}
-                  className={`flex items-center px-3 py-1 rounded-md text-sm font-medium transition ${
-                    previewMode === 'desktop'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Monitor className="w-4 h-4 mr-1" />
-                  Desktop
-                </button>
-                <button
-                  onClick={() => setPreviewMode('mobile')}
-                  className={`flex items-center px-3 py-1 rounded-md text-sm font-medium transition ${
-                    previewMode === 'mobile'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Smartphone className="w-4 h-4 mr-1" />
-                  Mobile
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Success/Error Messages */}
-      {success && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-green-800">{success}</p>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800">{error}</p>
-          </div>
-        </div>
-      )}
-
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {view === 'builder' ? (
-          <MenuBuilder 
-            menu={menu} 
-            onMenuChange={(m) => setMenu(m)}
-          />
-        ) : (
-          <MenuPreview 
-            menu={menu} 
-            mode={previewMode}
-          />
-        )}
+        <MenuBuilder 
+          menu={menu} 
+          onMenuChange={(m) => setMenu(m)}
+        />
       </div>
     </div>
   );
