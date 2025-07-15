@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { generateReceiptPNG } from '../../print/receipt';
 import { broadcastOrder } from '../../socket/broadcast';
 
@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Build new order items
     const orderItems = items.map((cartItem: unknown) => {
       const typedCartItem = cartItem as { itemId: string; quantity: number };
-      const menuItem = menuItems.find((mi) => mi.id === typedCartItem.itemId);
+      const menuItem = menuItems.find((mi: { id: string; name: string; price: number }) => mi.id === typedCartItem.itemId);
       if (!menuItem) throw new Error('Menu item not found');
       return {
         itemId: menuItem.id,
@@ -78,11 +78,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
     const total = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
     // Detect added items (by comparing with previous order)
-    const prevItemsMap = new Map(order.items.map((i: unknown) => [(i as { itemId: string }).itemId, (i as { quantity: number }).quantity]));
-    const addedItems = orderItems.filter((item) => {
-      const prevQty = prevItemsMap.get(item.itemId) || 0;
-      return item.quantity > prevQty;
-    }).map((item) => ({ ...item, quantity: item.quantity - (prevItemsMap.get(item.itemId) || 0) })).filter(i => i.quantity > 0);
+    const prevItemsMap = new Map(
+      order.items.map((i: unknown) => {
+        const oi = i as { itemId: string; quantity: number };
+        return [oi.itemId, oi.quantity];
+      })
+    );
+    const addedItems = orderItems
+      .filter((item) => {
+        const prevQty = Number(prevItemsMap.get(item.itemId)) || 0;
+        return item.quantity > prevQty;
+      })
+      .map((item) => ({ ...item, quantity: item.quantity - (Number(prevItemsMap.get(item.itemId)) || 0) }))
+      .filter((i) => i.quantity > 0);
     // Delete old items and create new
     await prisma.orderItem.deleteMany({ where: { orderId: id } });
     await prisma.orderItem.createMany({ data: orderItems });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@/generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { broadcastOrder } from '../socket/broadcast';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]/authOptions';
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     // Build order items snapshot
     const orderItems = items.map((cartItem: unknown) => {
       const typedCartItem = cartItem as { itemId: string; quantity: number; note?: string };
-      const menuItem = menuItems.find((mi) => mi.id === typedCartItem.itemId);
+      const menuItem = menuItems.find((mi: { id: string; name: string; price: number }) => mi.id === typedCartItem.itemId);
       if (!menuItem) throw new Error('Menu item not found');
       return {
         itemId: menuItem.id,
