@@ -2,9 +2,17 @@
 import { useEffect, useState } from "react";
 import Image from 'next/image';
 import { useSearchParams } from "next/navigation";
-import { ShoppingCart, Home, User, Menu as MenuIcon, X, Plus, Minus, CheckCircle } from "lucide-react";
+import { ShoppingCart, Home, User, Menu as MenuIcon, X, Plus, Minus, CheckCircle, Sparkles, Flame, Star, Tag } from "lucide-react";
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
+
+// BADGE_CONFIG (copy from PublicMenu.tsx)
+const BADGE_CONFIG = {
+  new: { icon: Sparkles, color: 'bg-green-100 text-green-800', label: 'New' },
+  spicy: { icon: Flame, color: 'bg-red-100 text-red-800', label: 'Spicy' },
+  popular: { icon: Star, color: 'bg-yellow-100 text-yellow-800', label: 'Popular' },
+  'chef-special': { icon: Tag, color: 'bg-purple-100 text-purple-800', label: "Chef's Special" },
+};
 
 export default function MobileOrderPage() {
   const searchParams = useSearchParams();
@@ -190,41 +198,49 @@ export default function MobileOrderPage() {
             <div key={cat.categoryId} className="mb-6">
               <h2 className="text-lg font-bold text-gray-900 mb-2 px-1">{cat.categoryName}</h2>
               <div className="flex flex-col gap-3">
-                {cat.items.map((item) => (
-                  <button
-                    key={item.itemId}
-                    className="bg-white rounded-xl shadow border border-gray-100 flex items-center gap-3 p-3 active:scale-95 transition-transform"
-                    onClick={() => openItemModal(item)}
-                  >
-                    {item.imageUrl ? (
-                      <Image
-                        src={item.imageUrl}
-                        alt={item.name}
-                        width={64}
-                        height={64}
-                        className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
-                        No Image
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-gray-900 truncate text-base">{item.name}</span>
-                        {item.badge && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                            {item.badge.charAt(0).toUpperCase() + item.badge.slice(1)}
-                          </span>
-                        )}
-                      </div>
-                      {item.description && (
-                        <div className="text-xs text-gray-500 mb-1 line-clamp-2">{item.description}</div>
+                {cat.items.map((item) => {
+                  const badgeConfig = BADGE_CONFIG[item.badge as keyof typeof BADGE_CONFIG];
+                  return (
+                    <button
+                      key={item.itemId}
+                      className="bg-white rounded-xl shadow border border-gray-100 flex items-center gap-3 p-3 active:scale-95 transition-transform relative"
+                      onClick={() => openItemModal(item)}
+                    >
+                      {/* Floating badge on top left */}
+                      {item.badge && badgeConfig && (
+                        <span className={`absolute top-2 left-2 z-10 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium shadow ${badgeConfig.color}`}
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          <badgeConfig.icon className="h-3 w-3 mr-1" />
+                          {badgeConfig.label}
+                        </span>
                       )}
-                      <div className="text-blue-600 font-bold text-lg">{getCurrencySymbol(currency)}{item.price.toFixed(2)}</div>
-                    </div>
-                  </button>
-                ))}
+                      {item.imageUrl ? (
+                        <Image
+                          src={item.imageUrl}
+                          alt={item.name}
+                          width={64}
+                          height={64}
+                          className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400 flex-shrink-0">
+                          No Image
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-gray-900 truncate text-base">{item.name}</span>
+                          {/* Remove old inline badge here */}
+                        </div>
+                        {item.description && (
+                          <div className="text-xs text-gray-500 mb-1 line-clamp-2">{item.description}</div>
+                        )}
+                        <div className="text-blue-600 font-bold text-lg">{getCurrencySymbol(currency)}{item.price.toFixed(2)}</div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}

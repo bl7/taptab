@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/authOptions';
 import db from '@/lib/pg';
+import { createId } from '@paralleldrive/cuid2';
+
+// Define Menu type for type safety
+interface MenuLayoutCategory {
+  id: string;
+  visible?: boolean;
+  order?: number;
+  items?: { id: string; visible?: boolean; badge?: string }[];
+}
+interface Menu {
+  id?: string;
+  name: string;
+  published: boolean;
+  categories?: unknown[];
+  layout?: { categories?: MenuLayoutCategory[] };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,13 +36,25 @@ export async function POST(request: NextRequest) {
     const restaurantId = session.user.restaurantId;
 
     if (action === 'save') {
-      const menuId = await saveMenuLayout(restaurantId, menu, false);
-      return NextResponse.json({ success: true, message: 'Menu saved successfully', id: menuId });
+      try {
+        const menuId = await saveMenuLayout(restaurantId, menu, false);
+        if (!menuId) throw new Error('Menu was not created. No id returned.');
+        return NextResponse.json({ success: true, message: 'Menu saved successfully', id: menuId });
+      } catch (error) {
+        console.error('Menu save error:', error);
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to save menu' }, { status: 500 });
+      }
     }
 
     if (action === 'publish') {
-      const menuId = await saveMenuLayout(restaurantId, menu, true);
-      return NextResponse.json({ success: true, message: 'Menu published successfully', id: menuId });
+      try {
+        const menuId = await saveMenuLayout(restaurantId, menu, true);
+        if (!menuId) throw new Error('Menu was not created. No id returned.');
+        return NextResponse.json({ success: true, message: 'Menu published successfully', id: menuId });
+      } catch (error) {
+        console.error('Menu publish error:', error);
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to publish menu' }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
@@ -34,7 +62,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Menu builder error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     );
   }
@@ -70,14 +98,13 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-async function saveMenuLayout(restaurantId: string, menu: unknown, publish: boolean): Promise<string> {
+async function saveMenuLayout(restaurantId: string, menu: Menu, publish: boolean): Promise<string> {
   let client;
-  let menuId: string;
+  let menuId: string | undefined = menu.id;
   try {
     client = await db.connect();
     try {
       await client.query('BEGIN');
-      menuId = (menu as unknown as { id: string }).id;
       if (publish) {
         // Unpublish all menus for this restaurant
         await client.query(
@@ -85,16 +112,24 @@ async function saveMenuLayout(restaurantId: string, menu: unknown, publish: bool
           [restaurantId]
         );
       }
-      if (!menuId) {
+      let menuExists = false;
+      if (menuId) {
+        const check = await client.query('SELECT 1 FROM "Menu" WHERE id = $1 AND "restaurantId" = $2', [menuId, restaurantId]);
+        menuExists = (check?.rowCount ?? 0) > 0;
+      }
+      if (!menuId || !menuExists) {
+        // Always generate a CUID for new menu
+        menuId = createId();
+        const now = new Date();
         const menuResult = await client.query(
-          'INSERT INTO "Menu" ("restaurantId", name, published, layout) VALUES ($1, $2, $3, $4) RETURNING id',
-          [restaurantId, (menu as unknown as { name: string }).name, publish, JSON.stringify({ categories: (menu as unknown as { categories: unknown[] }).categories })]
+          'INSERT INTO "Menu" (id, "restaurantId", name, published, layout, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+          [menuId, restaurantId, menu.name, publish, JSON.stringify({ categories: menu.categories || [] }), now, now]
         );
         menuId = menuResult.rows[0].id;
       } else {
         await client.query(
           'UPDATE "Menu" SET name = $1, layout = $2 WHERE id = $3 AND "restaurantId" = $4',
-          [(menu as unknown as { name: string }).name, JSON.stringify({ categories: (menu as unknown as { categories: unknown[] }).categories }), menuId, restaurantId]
+          [menu.name, JSON.stringify({ categories: menu.categories || [] }), menuId, restaurantId]
         );
         if (publish) {
           // Set published=true for the selected menu
@@ -105,15 +140,17 @@ async function saveMenuLayout(restaurantId: string, menu: unknown, publish: bool
         }
       }
       await client.query('COMMIT');
+      if (!menuId) throw new Error('Menu was not created. No id returned.');
       return menuId;
     } catch (error) {
       await client.query('ROLLBACK');
+      console.error('Menu save error:', error);
       throw error;
     } finally {
       client.release();
     }
   } catch (error) {
-    // If client was never acquired, nothing to release
+    console.error('Menu save outer error:', error);
     throw error;
   }
 } 

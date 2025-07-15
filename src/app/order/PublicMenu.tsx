@@ -123,19 +123,6 @@ export default function PublicMenu({ restaurantId }: PublicMenuProps) {
     fetchMenu();
   }, [restaurantId]);
 
-  const getBadgeDisplay = (badgeValue: string) => {
-    const badge = BADGE_CONFIG[badgeValue as keyof typeof BADGE_CONFIG];
-    if (!badge) return null;
-    
-    const Icon = badge.icon;
-    return (
-      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
-        <Icon className="h-3 w-3 mr-1" />
-        {badge.label}
-      </span>
-    );
-  };
-
   if (isLoading) {
     return (
       <div className="text-center py-12">
@@ -209,40 +196,52 @@ export default function PublicMenu({ restaurantId }: PublicMenuProps) {
             </div>
             <div className="p-6">
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {category.items.map((item) => (
-                  <div
-                    key={item.itemId}
-                    className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
-                  >
-                    {item.imageUrl && (
-                      <div className="aspect-w-16 aspect-h-9">
-                        <Image
-                          src={item.imageUrl}
-                          alt={item.name}
-                          layout="fill"
-                          objectFit="cover"
-                        />
-                      </div>
-                    )}
-                    <div className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="text-lg font-medium text-gray-900">{item.name}</h3>
-                        {item.badge && getBadgeDisplay(item.badge)}
-                      </div>
-                      {item.description && (
-                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <span className="text-lg font-semibold text-gray-900">
-                          {getCurrencySymbol(currency)}{item.price.toFixed(2)}
+                {category.items.map((item) => {
+                  const badgeConfig = BADGE_CONFIG[item.badge as keyof typeof BADGE_CONFIG];
+                  return (
+                    <div
+                      key={item.itemId}
+                      className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow relative"
+                    >
+                      {/* Badge on top left */}
+                      {item.badge && badgeConfig && (
+                        <span className={`absolute top-3 left-3 z-10 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium shadow ${badgeConfig.color}`}
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          <badgeConfig.icon className="h-3 w-3 mr-1" />
+                          {badgeConfig.label}
                         </span>
-                        <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                          Add to Order
-                        </button>
+                      )}
+                      {item.imageUrl && (
+                        <div className="aspect-w-16 aspect-h-9">
+                          <Image
+                            src={item.imageUrl}
+                            alt={item.name}
+                            layout="fill"
+                            objectFit="cover"
+                          />
+                        </div>
+                      )}
+                      <div className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="text-lg font-medium text-gray-900">{item.name}</h3>
+                          {/* Remove badge here, now shown on top */}
+                        </div>
+                        {item.description && (
+                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-lg font-semibold text-gray-900">
+                            {getCurrencySymbol(currency)}{item.price.toFixed(2)}
+                          </span>
+                          <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Add to Order
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

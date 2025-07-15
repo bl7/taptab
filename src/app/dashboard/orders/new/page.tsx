@@ -337,27 +337,27 @@ export default function NewOrderPage() {
         {/* Table Orders at Bottom */}
         <div className="fixed bottom-0 left-56 right-[400px] z-30 flex items-center gap-4 px-6 py-3 bg-white border-t border-gray-200 overflow-x-auto" style={{ minHeight: '64px', maxWidth: 'calc(100vw - 400px - 14rem)' }}>
           {activeOrders.filter(order => order.tableId === selectedTable).map((order) => (
-            <button
-              key={order.id}
+              <button
+                key={order.id}
               className={`flex flex-col items-start min-w-[180px] max-w-xs px-5 py-3 bg-yellow-50 border border-yellow-200 text-yellow-900 font-semibold text-base hover:bg-yellow-100 transition whitespace-nowrap ${activeOrderId === order.id ? 'ring-2 ring-[#00932A]' : ''}`}
-              onClick={async () => {
-                setActiveOrderId(order.id);
-                setEditingExisting(true);
-                // Fetch full order details (with items)
-                const res = await fetch(`/api/orders/${order.id}`);
-                const data = await res.json();
-                setCart(data.items.map((i: MenuItem & { quantity: number }) => {
-                  const menuItem = menu.flatMap((cat) => cat.items).find((m) => m.itemId === i.itemId);
-                  return { itemId: i.itemId, name: i.name, price: i.price, quantity: i.quantity, imageUrl: menuItem?.imageUrl, description: menuItem?.description };
-                }));
-                setNote(data.note || "");
-              }}
-            >
+                onClick={async () => {
+                  setActiveOrderId(order.id);
+                  setEditingExisting(true);
+                  // Fetch full order details (with items)
+                  const res = await fetch(`/api/orders/${order.id}`);
+                  const data = await res.json();
+                  setCart(data.items.map((i: MenuItem & { quantity: number }) => {
+                    const menuItem = menu.flatMap((cat) => cat.items).find((m) => m.itemId === i.itemId);
+                    return { itemId: i.itemId, name: i.name, price: i.price, quantity: i.quantity, imageUrl: menuItem?.imageUrl, description: menuItem?.description };
+                  }));
+                  setNote(data.note || "");
+                }}
+              >
               <span className="font-bold text-base truncate w-full text-left">{order.customerName || 'No Name'}</span>
               <span className="text-xs text-gray-600 mt-1">{order.items?.length || 0} items</span>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
       </div>
       {/* Right: Order Summary */}
       <form className="w-[400px] bg-white border-l border-gray-100 shadow-lg min-h-screen h-screen flex flex-col sticky top-0" onSubmit={handleSubmit}>

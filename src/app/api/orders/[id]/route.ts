@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { generateReceiptPNG } from '../../print/receipt';
 import { broadcastOrder } from '../../socket/broadcast';
-
-const prisma = new PrismaClient();
 
 // Get a single order by ID
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

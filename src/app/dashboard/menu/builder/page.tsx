@@ -6,11 +6,27 @@ import type { Menu, MenuCategory, MenuItem } from './MenuBuilder';
 import MenuBuilder from './MenuBuilder';
 import toast from 'react-hot-toast';
 import { SidebarContext } from '../../SidebarContext';
-import { createId } from '@paralleldrive/cuid2';
+import { Dialog } from '@headlessui/react';
 
 // Types for layout parsing
 type LayoutItem = { id: string; visible?: boolean; badge?: string };
 type LayoutCategory = { id: string; visible?: boolean; order?: number; items?: LayoutItem[] };
+
+// Helper to serialize menu to layout format (including badge and visible)
+function serializeMenuLayout(menu: Menu) {
+  return {
+    categories: menu.categories.map((cat, idx) => ({
+      id: cat.id,
+      visible: cat.visible ?? true,
+      order: cat.order ?? idx,
+      items: (cat.items || []).map(item => ({
+        id: item.id,
+        visible: item.visible ?? true,
+        badge: item.badge ?? undefined,
+      }))
+    }))
+  };
+}
 
 export default function MenuBuilderPage() {
   const { data: session, status } = useSession();
@@ -27,6 +43,11 @@ export default function MenuBuilderPage() {
   const [allCategories, setAllCategories] = useState<MenuCategory[]>([]);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [allItems, setAllItems] = useState<Array<MenuItem & { categoryId: string }>>([]);
+
+  // New Menu Modal State
+  const [showNewMenuModal, setShowNewMenuModal] = useState(false);
+  const [newMenuName, setNewMenuName] = useState('');
+  const [creatingMenu, setCreatingMenu] = useState(false);
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -195,7 +216,7 @@ export default function MenuBuilderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'save',
-          menu: menu
+          menu: { ...menu, layout: serializeMenuLayout(menu) }
         })
       });
 
@@ -229,7 +250,7 @@ export default function MenuBuilderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'publish',
-          menu: menu
+          menu: { ...menu, layout: serializeMenuLayout(menu) }
         })
       });
 
@@ -302,8 +323,8 @@ export default function MenuBuilderPage() {
           <button
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow"
             onClick={() => {
-              setMenu({ id: createId(), name: 'Untitled Menu', published: false, categories: [] });
-              setSelectedMenuId(null);
+              setShowNewMenuModal(true);
+              setNewMenuName('');
             }}
           >
             + Create New Menu
@@ -350,6 +371,68 @@ export default function MenuBuilderPage() {
           Need to add or edit categories/items? <a href="/dashboard/menu" className="text-blue-600 underline">Go to Menu Management</a>
         </div>
       </aside>
+      {/* New Menu Modal */}
+      <Dialog open={showNewMenuModal} onClose={() => setShowNewMenuModal(false)} className="fixed z-50 inset-0 overflow-y-auto">
+        <div className="flex items-center justify-center min-h-screen px-4">
+          {/* Overlay replacement for Dialog.Overlay */}
+          <div className="fixed inset-0 bg-black opacity-30" aria-hidden="true" />
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-auto p-6 z-50">
+            <Dialog.Title className="text-lg font-bold mb-2">Create New Menu</Dialog.Title>
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Menu name..."
+              value={newMenuName}
+              onChange={e => setNewMenuName(e.target.value)}
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+                onClick={() => setShowNewMenuModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                disabled={!newMenuName.trim() || creatingMenu}
+                onClick={async () => {
+                  if (!newMenuName.trim()) return;
+                  setCreatingMenu(true);
+                  try {
+                    const res = await fetch('/api/menu/builder', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        action: 'save',
+                        menu: { name: newMenuName.trim(), published: false, categories: [], layout: { categories: [] } }
+                      })
+                    });
+                    if (!res.ok) {
+                      const data = await res.json();
+                      throw new Error(data.error || 'Failed to create menu');
+                    }
+                    const data = await res.json();
+                    if (!data.id) throw new Error('Menu was not created. No id returned.');
+                    // Set the new menu and select it
+                    setMenu({ id: data.id, name: newMenuName.trim(), published: false, categories: [] });
+                    setSelectedMenuId(data.id);
+                    setShowNewMenuModal(false);
+                    setNewMenuName('');
+                    await loadMenu();
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to create menu');
+                  } finally {
+                    setCreatingMenu(false);
+                  }
+                }}
+              >
+                {creatingMenu ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Dialog>
       {/* Main Content */}
       <main
         className="flex-1 p-8"

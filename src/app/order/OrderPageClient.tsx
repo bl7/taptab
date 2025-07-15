@@ -2,7 +2,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { useSearchParams } from "next/navigation";
-import { ShoppingCart, Search, X } from "lucide-react";
+import { ShoppingCart, Search, X, Sparkles, Flame, Star, Tag } from "lucide-react";
 import Image from 'next/image';
 import React from "react";
 
@@ -14,6 +14,14 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   "Main Course": <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>,
   Burgers: <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="6" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>,
   // Add more as needed
+};
+
+// BADGE_CONFIG (copy from PublicMenu.tsx)
+const BADGE_CONFIG = {
+  new: { icon: Sparkles, color: 'bg-green-100 text-green-800', label: 'New' },
+  spicy: { icon: Flame, color: 'bg-red-100 text-red-800', label: 'Spicy' },
+  popular: { icon: Star, color: 'bg-yellow-100 text-yellow-800', label: 'Popular' },
+  'chef-special': { icon: Tag, color: 'bg-purple-100 text-purple-800', label: "Chef's Special" },
 };
 
 export default function OrderPageClient() {
@@ -295,6 +303,7 @@ export default function OrderPageClient() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mt-2">
           {filteredMenu.flatMap((cat) =>
             cat.items.map((item) => {
+              const badgeConfig = BADGE_CONFIG[item.badge as keyof typeof BADGE_CONFIG];
               const cartItem = cart.find((i) => i.itemId === item.itemId);
               return (
                 <div
@@ -302,6 +311,15 @@ export default function OrderPageClient() {
                   className="bg-white rounded-xl shadow border border-gray-100 flex flex-col p-2 hover:shadow-md transition group cursor-pointer relative"
                   onClick={() => openItemModal(item)}
                 >
+                  {/* Floating badge on top left */}
+                  {item.badge && badgeConfig && (
+                    <span className={`absolute top-2 left-2 z-10 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium shadow ${badgeConfig.color}`}
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      <badgeConfig.icon className="h-3 w-3 mr-1" />
+                      {badgeConfig.label}
+                    </span>
+                  )}
                   {item.imageUrl && (
                     <div className="w-full h-20 mb-2 relative rounded-md overflow-hidden bg-gray-100">
                       <Image
@@ -315,9 +333,7 @@ export default function OrderPageClient() {
                   <div className="flex-1 flex flex-col">
                     <div className="flex items-center gap-1 mb-1">
                       <h3 className="font-semibold text-xs text-gray-900 flex-1 truncate">{item.name}</h3>
-                      {item.badge && (
-                        <span className="ml-1 px-1 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800">{item.badge}</span>
-                      )}
+                      {/* Remove old inline badge here */}
                     </div>
                     <span className="font-bold text-green-700 text-sm">{getCurrencySymbol(currency)}{item.price.toFixed(2)}</span>
                     {/* Quantity control on card */}

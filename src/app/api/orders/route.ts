@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { broadcastOrder } from '../socket/broadcast';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]/authOptions';
-
-const prisma = new PrismaClient();
 
 // Create a new order (customer or staff)
 export async function POST(req: NextRequest) {
