@@ -6,6 +6,7 @@ import type { Menu, MenuCategory, MenuItem } from './MenuBuilder';
 import MenuBuilder from './MenuBuilder';
 import toast from 'react-hot-toast';
 import { SidebarContext } from '../../SidebarContext';
+import { createId } from '@paralleldrive/cuid2';
 
 // Types for layout parsing
 type LayoutItem = { id: string; visible?: boolean; badge?: string };
@@ -291,7 +292,7 @@ export default function MenuBuilderPage() {
           <button
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow"
             onClick={() => {
-              setMenu({ id: null, name: 'Untitled Menu', published: false, categories: [] });
+              setMenu({ id: createId(), name: 'Untitled Menu', published: false, categories: [] });
               setSelectedMenuId(null);
             }}
           >
